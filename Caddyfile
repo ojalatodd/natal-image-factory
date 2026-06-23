@@ -1,0 +1,14 @@
+# SITE_ADDRESS defaults to :80 locally; set to your domain in production for auto-HTTPS.
+{$SITE_ADDRESS::80} {
+	# API + WebSocket — strip /api before proxying to FastAPI (which uses root_path=/api).
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	# SPA static files with client-side routing fallback.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

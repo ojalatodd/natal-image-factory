@@ -1,0 +1,77 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Film, Image as ImageIcon, Plus } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { createProject, listProjects } from "../api";
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+
+  const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+
+  const create = useMutation({
+    mutationFn: () => createProject(name || "Untitled Project"),
+    onSuccess: (p) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      setName("");
+      navigate(`/projects/${p.id}`);
+    },
+  });
+
+  return (
+    <div className="mx-auto max-w-4xl p-8">
+      <header className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="text-accent" />
+          <Film className="text-accent2" />
+          <h1 className="text-2xl font-bold text-white">Natal Image Factory</h1>
+        </div>
+        <button
+          onClick={() => {
+            localStorage.removeItem("token");
+            navigate("/login");
+          }}
+          className="text-sm text-slate-400 hover:text-white"
+        >
+          Sign out
+        </button>
+      </header>
+
+      <div className="mb-8 flex gap-2">
+        <input
+          className="flex-1 rounded-lg bg-surface px-3 py-2 text-white outline-none ring-1 ring-card focus:ring-accent"
+          placeholder="New project name (e.g. Episode 47 — The Fall of Rome)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <button
+          onClick={() => create.mutate()}
+          className="flex items-center gap-1 rounded-lg bg-accent px-4 py-2 font-semibold text-white hover:bg-blue-600"
+        >
+          <Plus size={18} /> Create
+        </button>
+      </div>
+
+      <div className="grid gap-3">
+        {projects.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => navigate(`/projects/${p.id}`)}
+            className="flex items-center justify-between rounded-lg bg-surface p-4 text-left hover:bg-card"
+          >
+            <span className="font-medium text-white">{p.name}</span>
+            <span className="rounded-full bg-ink px-3 py-1 text-xs uppercase tracking-wide text-slate-400">
+              {p.status}
+            </span>
+          </button>
+        ))}
+        {projects.length === 0 && (
+          <p className="text-center text-slate-500">No projects yet. Create one to get started.</p>
+        )}
+      </div>
+    </div>
+  );
+}

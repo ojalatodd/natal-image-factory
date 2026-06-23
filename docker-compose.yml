@@ -1,0 +1,62 @@
+name: natal-image-factory
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      SITE_ADDRESS: ":80"
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      APP_ENV: development
+    volumes:
+      - db_data:/data
+    ports:
+      - "8000:8000"   # exposed for local frontend dev (npm run dev)
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    env_file: .env
+    volumes:
+      - db_data:/data
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${SPACES_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${SPACES_SECRET:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  minio_data:

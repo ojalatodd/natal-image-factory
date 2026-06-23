@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Natal Image Factory — Design Overview</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --card: #334155;
+      --border: #475569;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #3b82f6;
+      --accent2: #8b5cf6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --white: #f8fafc;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 2rem 4rem;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -0.5px;
+      margin-bottom: 0.25rem;
+    }
+    header .subtitle {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    header .accent-bar {
+      width: 120px;
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      margin: 1rem auto 0;
+    }
+
+    /* Sections */
+    section {
+      margin-bottom: 2.5rem;
+    }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid var(--card);
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #93c5fd;
+      margin: 1.5rem 0 0.6rem;
+    }
+    p {
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .muted { color: var(--text-muted); }
+
+    /* Diagram */
+    .diagram-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin: 1.5rem 0 2rem;
+      overflow: hidden;
+    }
+    .diagram-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Cards */
+    .step-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      margin: 1.2rem 0;
+    }
+    @media (max-width: 640px) {
+      .step-grid { grid-template-columns: 1fr; }
+    }
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.3rem 1.4rem;
+    }
+    .step-card.full { grid-column: 1 / -1; }
+    .step-card .step-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .step-card .step-label.green { color: var(--green); }
+    .step-card .step-label.amber { color: var(--amber); }
+    .step-card .step-label.purple { color: var(--accent2); }
+    .step-card h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 0.5rem;
+    }
+    .step-card p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin-bottom: 0;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.92rem;
+    }
+    th {
+      text-align: left;
+      padding: 0.6rem 0.8rem;
+      background: var(--card);
+      color: var(--white);
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 0.55rem 0.8rem;
+      border-bottom: 1px solid #2d3a4d;
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    td strong { color: #93c5fd; }
+
+    /* Code / file examples */
+    .file-example {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85rem;
+      color: #7ee787;
+      line-height: 1.8;
+      margin: 1rem 0 1.5rem;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* Numbered experience list */
+    .experience-list {
+      list-style: none;
+      counter-reset: exp;
+      padding: 0;
+    }
+    .experience-list li {
+      counter-increment: exp;
+      padding: 0.7rem 0 0.7rem 3rem;
+      position: relative;
+      border-bottom: 1px solid #1e293b;
+    }
+    .experience-list li:last-child { border-bottom: none; }
+    .experience-list li::before {
+      content: counter(exp);
+      position: absolute;
+      left: 0;
+      top: 0.65rem;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 28px;
+    }
+
+    /* Highlights */
+    .highlight-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 640px) {
+      .highlight-grid { grid-template-columns: 1fr; }
+    }
+    .highlight {
+      background: var(--surface);
+      border-left: 4px solid var(--green);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.2rem;
+    }
+    .highlight h4 {
+      color: var(--green);
+      font-size: 0.95rem;
+      margin-bottom: 0.3rem;
+    }
+    .highlight p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* Next steps */
+    .next-steps {
+      background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1));
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 12px;
+      padding: 1.5rem 1.8rem;
+      margin: 1.5rem 0;
+    }
+    .next-steps ol {
+      padding-left: 1.2rem;
+      margin: 0.8rem 0 0;
+    }
+    .next-steps li {
+      padding: 0.3rem 0;
+      color: var(--text);
+    }
+    .next-steps li strong { color: #93c5fd; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--card);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header>
+    <h1>Natal Image Factory</h1>
+    <p class="subtitle">Design Overview — Prepared for Client Review · v1.0</p>
+    <div class="accent-bar"></div>
+  </header>
+
+  <!-- ═══════════ INTRO ═══════════ -->
+  <section>
+    <h2>What Is Natal Image Factory?</h2>
+    <p>
+      Natal Image Factory is a web application designed for writers and podcasters who want to turn their
+      written articles and voiceover recordings into visually rich videos — without the tedious work of
+      manually searching for images and aligning them to audio.
+    </p>
+    <p>
+      You upload your <strong>article text</strong> and your <strong>voiceover audio</strong>.
+      The application does the rest: it breaks your narration into natural thematic segments, finds
+      compelling public-domain images for each segment, and delivers a neatly packaged download ready
+      for your video editor.
+    </p>
+  </section>
+
+  <!-- ═══════════ DIAGRAM ═══════════ -->
+  <section>
+    <h2>How It Works — At a Glance</h2>
+    <div class="diagram-wrap">
+      <img src="workflow-diagram.svg" alt="Natal Image Factory — Workflow Diagram">
+    </div>
+  </section>
+
+  <!-- ═══════════ STEPS ═══════════ -->
+  <section>
+    <h2>The Four Steps</h2>
+
+    <div class="step-grid">
+      <!-- Step 1a -->
+      <div class="step-card">
+        <div class="step-label">Step 1a</div>
+        <h4>📝 Upload Your Article</h4>
+        <p>Paste or upload the written text — plain text, Markdown, or Word documents are all accepted.</p>
+      </div>
+      <!-- Step 1b -->
+      <div class="step-card">
+        <div class="step-label">Step 1b</div>
+        <h4>🎙️ Upload Your Voiceover</h4>
+        <p>Upload the recorded narration in MP3, WAV, or any common audio format.</p>
+      </div>
+      <!-- Step 2 -->
+      <div class="step-card full">
+        <div class="step-label purple">Step 2 — AI Analysis</div>
+        <h4>🧠 Intelligent Segmentation</h4>
+        <p>
+          The application uses AI to read your article and analyze your voiceover. It divides the narration
+          into <strong>semantic segments</strong> — natural topic boundaries where the subject shifts
+          (e.g., from "the founding of Rome" to "military campaigns"). Each segment gets a precise
+          <strong>start and end timestamp</strong>.
+        </p>
+        <p>Think of it as the application creating an outline of your narration, with each bullet point getting its own illustration.</p>
+      </div>
+      <!-- Step 3 -->
+      <div class="step-card full">
+        <div class="step-label green">Step 3 — Image Search</div>
+        <h4>🔎 Curated Public-Domain Image Matching</h4>
+        <p>
+          For each segment, the application searches trusted public-domain and open-license image
+          collections for a single well-matched illustration:
+        </p>
+      </div>
+    </div>
+
+    <!-- Source table -->
+    <table>
+      <thead>
+        <tr><th>Source</th><th>What You'll Find</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Library of Congress</strong></td><td>Historic photographs, maps, posters, prints</td></tr>
+        <tr><td><strong>Wikimedia Commons</strong></td><td>Paintings, diagrams, charts, lithographs</td></tr>
+        <tr><td><strong>The Metropolitan Museum of Art</strong></td><td>Classical and fine-art imagery</td></tr>
+        <tr><td><strong>The Louvre (Collections)</strong></td><td>European paintings and antiquities</td></tr>
+        <tr><td><strong>Smithsonian Open Access</strong></td><td>Science, history, and culture imagery</td></tr>
+        <tr><td><strong>Unsplash</strong></td><td>High-quality modern photography</td></tr>
+        <tr><td><strong>Europeana</strong></td><td>European cultural heritage</td></tr>
+        <tr><td><strong>AI Generation (optional)</strong></td><td>Custom illustrations when no suitable public-domain image exists</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">
+      You can add or prioritize your own preferred sources in settings. The application also maintains its
+      own curated default list that evolves over time.
+    </p>
+
+    <!-- Step 4 -->
+    <div class="step-grid">
+      <div class="step-card full">
+        <div class="step-label amber">Step 4 — Output Package</div>
+        <h4>📦 Download Your .ZIP</h4>
+        <p>The application delivers a single <strong>.zip file</strong> containing numbered images and a timestamps reference file.</p>
+      </div>
+    </div>
+
+    <h3>Image Files</h3>
+    <div class="file-example">Img_01_roman_map.jpg
+Img_02_legion_formation.jpg
+Img_03_colosseum_lithograph.jpg
+Img_04_fall_of_rome.jpg</div>
+
+    <h3>Timestamps File (timestamps.txt)</h3>
+    <div class="file-example">Img_01  |  0:00 – 1:42  |  Origins of the Roman Empire
+Img_02  |  1:42 – 3:55  |  Military expansion across Europe
+Img_03  |  3:55 – 5:10  |  Art and architecture of imperial Rome
+Img_04  |  5:10 – 7:38  |  The decline and fall</div>
+
+    <p>You simply drag the images into your video timeline at the indicated timestamps. Done.</p>
+  </section>
+
+  <!-- ═══════════ SETTINGS ═══════════ -->
+  <section>
+    <h2>Your Settings — Your Creative Control</h2>
+
+    <h3>Visual Style</h3>
+    <p>Choose a visual tone that matches your content:</p>
+    <table>
+      <thead>
+        <tr><th>Style</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Classical Antiquity</strong></td><td>Greco-Roman art, marble sculptures, ancient maps</td></tr>
+        <tr><td><strong>Medieval</strong></td><td>Illuminated manuscripts, tapestries, woodcuts</td></tr>
+        <tr><td><strong>Renaissance</strong></td><td>Oil paintings, anatomical sketches, cartography</td></tr>
+        <tr><td><strong>Modern / Contemporary</strong></td><td>Photography, clean diagrams, infographics</td></tr>
+        <tr><td><strong>AI Judgement</strong></td><td>Let the application choose the best fit per segment automatically</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Preferred Image Sources</h3>
+    <p>
+      Add your favorite museums, archives, or libraries. The application will prioritize these when
+      searching, while still falling back on its full curated list if needed.
+    </p>
+
+    <h3>AI-Generated Images</h3>
+    <p>
+      Toggle this on or off. When enabled, if the application cannot find a strong public-domain match
+      for a particular segment, it will generate a custom illustration using AI image generation,
+      styled to match your chosen visual tone.
+    </p>
+  </section>
+
+  <!-- ═══════════ WHY DIFFERENT ═══════════ -->
+  <section>
+    <h2>What Makes This Different?</h2>
+    <div class="highlight-grid">
+      <div class="highlight">
+        <h4>⏱️ Saves Hours of Work</h4>
+        <p>No more manually Googling images, checking licenses, and renaming files.</p>
+      </div>
+      <div class="highlight">
+        <h4>✅ Legally Safe</h4>
+        <p>All images are public-domain or open-license. AI images are original works.</p>
+      </div>
+      <div class="highlight">
+        <h4>🧠 Intelligent, Not Random</h4>
+        <p>AI reads your content and understands themes — not just keyword matching.</p>
+      </div>
+      <div class="highlight">
+        <h4>🎬 Works With Any Editor</h4>
+        <p>Simple image files + text file. Premiere, Final Cut, DaVinci, CapCut — anything.</p>
+      </div>
+      <div class="highlight">
+        <h4>🎨 Your Preferences Matter</h4>
+        <p>Choose the visual era, the sources, and whether to use AI art.</p>
+      </div>
+      <div class="highlight">
+        <h4>☁️ Access From Anywhere</h4>
+        <p>Cloud-hosted, browser-based. No software to install.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ EXPERIENCE ═══════════ -->
+  <section>
+    <h2>The Experience — What You'll See</h2>
+    <ol class="experience-list">
+      <li><strong>Log in</strong> to the web application from any browser.</li>
+      <li><strong>Create a new project</strong> — give it a name (e.g., "Episode 47 — The Fall of Rome").</li>
+      <li><strong>Upload</strong> your article text and voiceover audio.</li>
+      <li><strong>Choose your settings</strong> — visual style, preferred sources, AI generation toggle.</li>
+      <li><strong>Click "Generate"</strong> — the application processes your content (typically a few minutes).</li>
+      <li><strong>Review</strong> the proposed segments and images on screen. Swap any image you don't like.</li>
+      <li><strong>Download</strong> the .zip package.</li>
+      <li><strong>Import into your video editor</strong> and drop the images at the indicated timestamps.</li>
+    </ol>
+  </section>
+
+  <!-- ═══════════ HOSTING ═══════════ -->
+  <section>
+    <h2>Where It Runs</h2>
+    <p>
+      The application is designed to run in the cloud (initially on DigitalOcean), so you access it
+      through your web browser — no software to install. It is built to be portable, meaning it can be
+      moved to any hosting provider in the future without rework.
+    </p>
+  </section>
+
+  <!-- ═══════════ NEXT STEPS ═══════════ -->
+  <section>
+    <h2>What Happens Next?</h2>
+    <div class="next-steps">
+      <p>This document is for your review and approval. Once you're happy with the concept and workflow, we will:</p>
+      <ol>
+        <li><strong>Produce a detailed technical design</strong> — specifying exact technologies, architecture, and integrations.</li>
+        <li><strong>Create an implementation plan</strong> — with phases, milestones, and timelines.</li>
+        <li><strong>Begin development</strong> — starting with the core upload-and-segmentation pipeline, then adding image search and packaging.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ═══════════ QUESTIONS ═══════════ -->
+  <section>
+    <h2>Questions?</h2>
+    <p>
+      If anything in this document is unclear, or if you'd like to add, remove, or change any feature,
+      now is the perfect time. This design is shaped around your workflow — your feedback makes it better.
+    </p>
+  </section>
+
+  <footer>
+    Natal Image Factory · Design Overview · v1.0
+  </footer>
+
+</div>
+
+</body>
+</html>
