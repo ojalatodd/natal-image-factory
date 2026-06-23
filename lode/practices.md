@@ -32,7 +32,9 @@ Patterns, conventions, and constraints that matter when changing this codebase.
 
 ## Git
 
-- Branch: `main`. Remote: `github.com/ojalatodd/natal-image-factory`.
+- Default branch: `main`. Remote: `github.com/ojalatodd/natal-image-factory`.
+- **Branching strategy**: When implementing a new feature or development stage, create a new branch from `main` with a rational, descriptive name (e.g., `phase1-whisper-transcription`, `feat-source-adapters`, `fix-celery-progress`). Merge back to `main` via PR or fast-forward after review.
+- Branch naming convention: `phase{n}-{feature}` for phase work, `feat-{feature}` for standalone features, `fix-{issue}` for bug fixes.
 - `.gitattributes` normalizes line endings to LF.
 - `lode/tmp/` is git-ignored (session scraps only).
 
