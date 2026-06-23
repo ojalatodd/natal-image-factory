@@ -124,6 +124,7 @@ class Asset(Base):
     license: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attribution: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    thumbnail_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     thumbnail_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     spaces_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 

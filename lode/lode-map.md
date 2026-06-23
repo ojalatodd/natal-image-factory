@@ -29,8 +29,8 @@ Hierarchical index of all lode files. **Read this first** before exploring the c
 ## Pipeline
 
 - [pipeline/summary.md](pipeline/summary.md) — Pipeline overview and data flow
-- [pipeline/stages.md](pipeline/stages.md) — The six pipeline stages (current stubs + future implementation)
-- [pipeline/adapters.md](pipeline/adapters.md) — Source adapter protocol and pluggable media sources
+- [pipeline/stages.md](pipeline/stages.md) — The six pipeline stages (Phase 1 implemented)
+- [pipeline/adapters.md](pipeline/adapters.md) — Source adapter protocol and implemented adapters
 
 ## Infrastructure
 

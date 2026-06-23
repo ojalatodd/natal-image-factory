@@ -59,7 +59,9 @@ class AssetOut(BaseModel):
     source_url: str | None
     license: str | None
     attribution: str | None
+    thumbnail_url: str | None
     thumbnail_key: str | None
+    spaces_key: str | None
     width: int | None
     height: int | None
     duration_s: float | None
