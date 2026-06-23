@@ -24,11 +24,11 @@ def run_pipeline(project_id: int) -> dict:
         stages.search_media(db, project, segments)
         stages.rank_match(db, project, segments)
         stages.acquire_process(db, project, segments)
-        stages.package(db, project, segments)
+        zip_key = stages.package(db, project, segments)
 
         progress.publish(project_id, "done", 100, "Ready for review")
         progress.set_project_status(project_id, ProjectStatus.review)
-        return {"ok": True, "segments": len(segments)}
+        return {"ok": True, "segments": len(segments), "zip_key": zip_key}
     except Exception as exc:  # noqa: BLE001 — surface any stage failure to the UI
         progress.publish(project_id, "error", 0, "Processing failed", error=str(exc))
         progress.set_project_status(project_id, ProjectStatus.error)

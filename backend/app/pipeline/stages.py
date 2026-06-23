@@ -1,72 +1,339 @@
-"""The six pipeline stages.
+"""The six pipeline stages — Phase 1 implementation.
 
-Phase 0 provides working orchestration with safe stubs:
-- Stage 1 (transcribe) produces a single placeholder timeline entry.
-- Stage 2 (segment) creates demo segments so the UI + packaging are exercisable.
-- Stages 3-6 are wired but defer real source/AI/ffmpeg work to later phases.
-
-Each stage updates progress and is independently testable.
+Stage 1: Transcribe audio via Whisper API (graceful fallback if no API key)
+Stage 2: Semantic segmentation via GPT-4o (graceful fallback)
+Stage 3: Search public-domain sources via source adapters
+Stage 4: Rank candidates via GPT-4o Vision (graceful fallback)
+Stage 5: Download, normalize, and upload still images
+Stage 6: Package ZIP with numbered files + manifest.txt
 """
 from __future__ import annotations
 
+import asyncio
+import io
+import logging
+import tempfile
+import zipfile
+from datetime import timedelta
+from pathlib import Path
+
+import httpx
 from sqlalchemy.orm import Session
 
-from app import progress
-from app.models import MediaType, Project, Segment
+from app import progress, storage
+from app.ai import rank_candidates, segment_text, transcribe_audio
+from app.models import Asset, AssetStatus, MediaMix, MediaType, Project, Segment
+
+# Import adapters so they register on import
+from app.pipeline.adapters import wikimedia, loc, internet_archive  # noqa: F401
+from app.pipeline.adapters.base import get_adapters
+from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
+
+logger = logging.getLogger("natal")
 
 
 # ---- Stage 1: Transcribe & align (Whisper) ----
 def transcribe(db: Session, project: Project) -> dict:
     progress.publish(project.id, "transcribe", 10, "Transcribing voiceover…")
-    # Phase 1: call OpenAI Whisper on project.source_audio_key, return word timeline.
-    duration = project.audio_duration_s or 0.0
-    return {"duration_s": duration, "words": []}
+
+    if not project.source_audio_key:
+        return {"duration_s": 0.0, "words": []}
+
+    audio_bytes = storage.download_bytes(project.source_audio_key)
+    filename = Path(project.source_audio_key).name
+
+    result = transcribe_audio(audio_bytes, filename=filename)
+
+    # Update project audio duration if we got a better measurement
+    if result["duration_s"] and result["duration_s"] > 0:
+        project.audio_duration_s = result["duration_s"]
+        db.commit()
+
+    progress.publish(project.id, "transcribe", 25, f"Transcribed {len(result['words'])} words")
+    return result
 
 
 # ---- Stage 2: Semantic segmentation (GPT-4o) ----
 def segment(db: Session, project: Project, transcript: dict) -> list[Segment]:
     progress.publish(project.id, "segment", 30, "Finding thematic segments…")
-    # Phase 1: GPT-4o over article text + transcript. Placeholder: one segment.
-    duration = transcript.get("duration_s") or 0.0
-    seg = Segment(
-        project_id=project.id,
-        index=1,
-        start_s=0.0,
-        end_s=duration,
-        duration_s=duration,
-        theme_label="Full narration",
-        summary="Placeholder segment — real segmentation lands in Phase 1.",
-        search_query=project.name,
-    )
-    db.add(seg)
+
+    # Load article text from Spaces
+    article_text = ""
+    if project.source_text_key:
+        try:
+            raw = storage.download_bytes(project.source_text_key)
+            article_text = raw.decode("utf-8", errors="replace")
+        except Exception as exc:
+            logger.warning("Could not load article text: %s", exc)
+
+    seg_data = segment_text(article_text, transcript)
+
+    # Clear old segments for re-runs
+    db.query(Segment).filter(Segment.project_id == project.id).delete()
     db.commit()
-    db.refresh(seg)
-    return [seg]
+
+    segments: list[Segment] = []
+    for s in seg_data:
+        seg = Segment(
+            project_id=project.id,
+            index=s["index"],
+            start_s=s["start_s"],
+            end_s=s["end_s"],
+            duration_s=s["duration_s"],
+            theme_label=s["theme_label"],
+            summary=s["summary"],
+            search_query=s["search_query"],
+        )
+        db.add(seg)
+        db.commit()
+        db.refresh(seg)
+        segments.append(seg)
+
+    progress.publish(project.id, "segment", 45, f"Created {len(segments)} segments")
+    return segments
 
 
 # ---- Stage 3: Media search (stills + video) ----
 def search_media(db: Session, project: Project, segments: list[Segment]) -> None:
     progress.publish(project.id, "search", 50, "Searching public-domain sources…")
-    # Phase 1 (stills) + Phase 3 (video): query adapters per media-mix policy.
+
+    # Determine which media type to search for
+    media_mix = project.media_mix
+    search_types: list[MediaType] = []
+    if media_mix == MediaMix.stills:
+        search_types = [MediaType.still]
+    elif media_mix == MediaMix.video:
+        search_types = [MediaType.video]
+    elif media_mix == MediaMix.balanced:
+        search_types = [MediaType.still, MediaType.video]
+    else:  # ai_judgement
+        search_types = [MediaType.still]
+
+    # Get registered adapters
+    adapters = get_adapters()
+    still_adapters = [a for a in adapters if a.media_type == "still"]
+    video_adapters = [a for a in adapters if a.media_type == "video"]
+
+    for seg in segments:
+        # Clear old assets for re-runs
+        db.query(Asset).filter(Asset.segment_id == seg.id).delete()
+        db.commit()
+
+        query = seg.search_query or seg.theme_label or project.name
+        style = project.visual_style or ""
+
+        types_to_search = search_types
+        if media_mix == MediaMix.ai_judgement:
+            types_to_search = [MediaType.still]
+
+        for mtype in types_to_search:
+            adapter_list = still_adapters if mtype == MediaType.still else video_adapters
+            for adapter in adapter_list:
+                try:
+                    results = asyncio.run(
+                        adapter.search(query, style=style, min_duration_s=seg.duration_s, limit=5)
+                    )
+                    for c in results:
+                        asset = Asset(
+                            segment_id=seg.id,
+                            media_type=mtype,
+                            source_name=c.source_name,
+                            source_url=c.source_url,
+                            license=c.license,
+                            attribution=c.attribution,
+                            thumbnail_url=c.thumbnail_url,
+                            width=c.width,
+                            height=c.height,
+                            duration_s=c.duration_s,
+                            status=AssetStatus.candidate,
+                        )
+                        db.add(asset)
+                except Exception as exc:
+                    logger.warning("Adapter %s failed for segment %d: %s", adapter.name, seg.index, exc)
+
+        db.commit()
+        logger.info("Segment %d: found candidates", seg.index)
+
+    progress.publish(project.id, "search", 60, "Search complete")
 
 
 # ---- Stage 4: Rank & match (GPT-4o Vision) ----
 def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
     progress.publish(project.id, "rank", 65, "Ranking candidate media…")
-    # Phase 1/3: score candidates; set chosen_media_type + chosen_asset_id.
+
     for seg in segments:
-        seg.chosen_media_type = MediaType.still
-    db.commit()
+        assets = db.query(Asset).filter(Asset.segment_id == seg.id).all()
+        if not assets:
+            seg.chosen_media_type = MediaType.still
+            continue
+
+        # Build candidate list for Vision API
+        candidates_with_urls = [
+            {"url": a.thumbnail_url or a.source_url or "", "title": a.attribution or ""}
+            for a in assets
+            if a.thumbnail_url or a.source_url
+        ]
+
+        if candidates_with_urls:
+            scored = rank_candidates(seg.summary or "", seg.search_query or "", candidates_with_urls)
+
+            # Map scores back to assets by URL
+            for score_entry in scored:
+                url = score_entry["url"]
+                for a in assets:
+                    if (a.thumbnail_url or a.source_url) == url:
+                        a.relevance_score = score_entry["relevance_score"]
+                        break
+
+            # Pick the best one
+            best = max(assets, key=lambda a: a.relevance_score or 0.0)
+            best.is_chosen = True
+            seg.chosen_asset_id = best.id
+            seg.chosen_media_type = best.media_type
+        else:
+            assets[0].is_chosen = True
+            seg.chosen_asset_id = assets[0].id
+            seg.chosen_media_type = assets[0].media_type
+
+        db.commit()
+
+    progress.publish(project.id, "rank", 75, "Ranking complete")
 
 
-# ---- Stage 5: Acquire, trim & normalize (ffmpeg) ----
+# ---- Stage 5: Acquire, trim & normalize ----
 def acquire_process(db: Session, project: Project, segments: list[Segment]) -> None:
-    progress.publish(project.id, "process", 80, "Preparing media (trim/normalize)…")
-    # Phase 1 (stills) + Phase 3 (video trim/normalize via media.py).
+    progress.publish(project.id, "process", 80, "Preparing media (download/normalize)…")
+
+    for seg in segments:
+        if not seg.chosen_asset_id:
+            continue
+
+        asset = db.get(Asset, seg.chosen_asset_id)
+        if not asset:
+            continue
+
+        try:
+            if asset.media_type == MediaType.still:
+                _process_still(db, project, seg, asset)
+            else:
+                asset.status = AssetStatus.failed
+                logger.warning("Video processing not yet implemented for segment %d", seg.index)
+
+            db.commit()
+        except Exception as exc:
+            asset.status = AssetStatus.failed
+            db.commit()
+            logger.error("Failed to process asset %d: %s", asset.id, exc)
+
+    progress.publish(project.id, "process", 90, "Media preparation complete")
+
+
+def _process_still(db: Session, project: Project, seg: Segment, asset: Asset) -> None:
+    """Download a still image, normalize it, upload to Spaces, and generate a thumbnail."""
+    adapters = get_adapters(media_type="still")
+    adapter = None
+    for a in adapters:
+        if a.name == asset.source_name:
+            adapter = a
+            break
+
+    if not adapter or not asset.thumbnail_url:
+        resp = httpx.get(asset.thumbnail_url or asset.source_url or "", timeout=60, follow_redirects=True)
+        resp.raise_for_status()
+        raw_bytes = resp.content
+    else:
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            asyncio.run(adapter.fetch(asset, tmp_path))
+            raw_bytes = tmp_path.read_bytes()
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    # Save raw to temp file for Pillow processing
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp.write(raw_bytes)
+        tmp_path = Path(tmp.name)
+
+    try:
+        # Normalize image and get bytes + dimensions
+        normalized_bytes, width, height = image_to_bytes(tmp_path)
+        thumb_bytes = thumbnail_to_bytes(tmp_path)
+
+        # Upload to Spaces
+        media_key = f"media/{project.id}/{seg.index:02d}_{asset.id}.jpg"
+        thumb_key = f"thumbs/{project.id}/{asset.id}.jpg"
+
+        storage.upload_bytes(media_key, normalized_bytes, "image/jpeg")
+        storage.upload_bytes(thumb_key, thumb_bytes, "image/jpeg")
+
+        # Update asset
+        asset.spaces_key = media_key
+        asset.thumbnail_key = thumb_key
+        asset.width = width
+        asset.height = height
+        asset.status = AssetStatus.processed
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 # ---- Stage 6: Package ZIP + manifest ----
 def package(db: Session, project: Project, segments: list[Segment]) -> str:
     progress.publish(project.id, "package", 95, "Packaging download…")
-    # Phase 1: build numbered files + manifest.txt, zip, upload to Spaces output/.
-    return f"output/project_{project.id}.zip"
+
+    buf = io.BytesIO()
+    manifest_lines: list[str] = []
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        file_index = 0
+        for seg in segments:
+            if not seg.chosen_asset_id:
+                continue
+
+            asset = db.get(Asset, seg.chosen_asset_id)
+            if not asset or asset.status != AssetStatus.processed or not asset.spaces_key:
+                continue
+
+            file_index += 1
+            ext = "jpg" if asset.media_type == MediaType.still else "mp4"
+            filename = f"{file_index:02d}.{ext}"
+
+            # Download from Spaces and add to ZIP
+            media_bytes = storage.download_bytes(asset.spaces_key)
+            zf.writestr(filename, media_bytes)
+
+            # Format timestamps
+            start_ts = _format_timestamp(seg.start_s)
+            end_ts = _format_timestamp(seg.end_s)
+
+            manifest_lines.append(
+                f"{filename}\t{start_ts} - {end_ts}\t{seg.theme_label or 'Segment ' + str(seg.index)}\t"
+                f"Source: {asset.source_name}\tLicense: {asset.license or 'Unknown'}\t"
+                f"Attribution: {asset.attribution or 'N/A'}"
+            )
+
+        # Write manifest
+        manifest_content = "Natal Image Factory - Manifest\n"
+        manifest_content += f"Project: {project.name}\n"
+        manifest_content += f"Files: {file_index}\n"
+        manifest_content += f"{'=' * 60}\n\n"
+        manifest_content += "\n".join(manifest_lines)
+        manifest_content += "\n"
+        zf.writestr("manifest.txt", manifest_content)
+
+    # Upload ZIP to Spaces
+    zip_key = f"output/project_{project.id}.zip"
+    storage.upload_bytes(zip_key, buf.getvalue(), "application/zip")
+
+    progress.publish(project.id, "package", 100, f"Packaged {file_index} files")
+    return zip_key
+
+
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds as MM:SS or HH:MM:SS."""
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"

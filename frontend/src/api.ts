@@ -19,6 +19,39 @@ export interface Project {
   ai_images_enabled: boolean;
   ai_video_motion: boolean;
   audio_duration_s: number | null;
+  source_text_key: string | null;
+  source_audio_key: string | null;
+}
+
+export interface Asset {
+  id: number;
+  media_type: string;
+  source_name: string;
+  source_url: string | null;
+  license: string | null;
+  attribution: string | null;
+  thumbnail_url: string | null;
+  thumbnail_key: string | null;
+  spaces_key: string | null;
+  width: number | null;
+  height: number | null;
+  duration_s: number | null;
+  relevance_score: number | null;
+  is_chosen: boolean;
+  status: string;
+}
+
+export interface Segment {
+  id: number;
+  index: number;
+  start_s: number;
+  end_s: number;
+  duration_s: number;
+  theme_label: string | null;
+  summary: string | null;
+  chosen_media_type: string | null;
+  chosen_asset_id: number | null;
+  assets: Asset[];
 }
 
 export async function login(email: string, password: string) {
@@ -35,4 +68,24 @@ export async function listProjects(): Promise<Project[]> {
 export async function createProject(name: string): Promise<Project> {
   const { data } = await api.post("/projects", { name });
   return data;
+}
+
+export async function getProject(id: string | number): Promise<Project> {
+  const { data } = await api.get(`/projects/${id}`);
+  return data;
+}
+
+export async function listSegments(projectId: string | number): Promise<Segment[]> {
+  const { data } = await api.get(`/projects/${projectId}/segments`);
+  return data;
+}
+
+export async function swapAsset(segmentId: number, assetId: number): Promise<Segment> {
+  const { data } = await api.post(`/segments/${segmentId}/swap`, { asset_id: assetId });
+  return data;
+}
+
+export async function getDownloadUrl(projectId: string | number): Promise<string> {
+  const { data } = await api.get(`/projects/${projectId}/download`);
+  return data.url;
 }

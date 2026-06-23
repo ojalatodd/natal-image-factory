@@ -15,13 +15,18 @@ The backend is a Python 3.12 FastAPI application served by Uvicorn, with Celery 
 - `celery_app.py` — Celery app with Redis broker
 - `progress.py` — Job progress persistence + Redis pub/sub
 - `tasks.py` — `run_pipeline` Celery task
-- `pipeline/stages.py` — Six pipeline stage functions
-- `pipeline/adapters/base.py` — SourceAdapter protocol
-- `pipeline/media.py` — ffmpeg/ffprobe helpers (stubs)
+- `ai.py` — OpenAI API helpers (Whisper transcription, GPT-4o segmentation, GPT-4o Vision ranking)
+- `pipeline/stages.py` — Six pipeline stage functions (Phase 1 implemented)
+- `pipeline/adapters/base.py` — SourceAdapter protocol + registry
+- `pipeline/adapters/wikimedia.py` — Wikimedia Commons adapter
+- `pipeline/adapters/loc.py` — Library of Congress adapter
+- `pipeline/adapters/internet_archive.py` — Internet Archive adapter
+- `pipeline/image_utils.py` — Pillow image normalization (resize, convert, thumbnail)
+- `pipeline/media.py` — ffmpeg/ffprobe helpers (stubs for Phase 3)
 
 **Routers:**
 - `auth.py` — login, get current user
-- `projects.py` — CRUD, generate (trigger pipeline), download
+- `projects.py` — CRUD, generate (requires text + audio upload), download (review or complete status)
 - `uploads.py` — upload text/audio files to Spaces
 - `segments.py` — list segments, swap asset
 - `sources.py` — list/update source adapter configs

@@ -11,15 +11,15 @@
 - Verified: full stack builds and runs in Docker Desktop
 - Pushed to `github.com/ojalatodd/natal-image-factory` main branch
 
-## Phase 1 — Core Still Image Pipeline
+## Phase 1 — Core Still Image Pipeline (IMPLEMENTED)
 
-- **Stage 1 (Transcribe):** Integrate OpenAI Whisper API on `source_audio_key`, return word-level timeline.
-- **Stage 2 (Segment):** GPT-4o over article text + transcript → thematic segments with timestamps, theme labels, summaries, and search queries.
-- **Stage 3 (Search - Stills):** Implement source adapters for Wikimedia Commons, Flickr Commons, Internet Archive. Query per segment search_query + visual_style.
-- **Stage 4 (Rank):** GPT-4o Vision scores candidate thumbnails against segment summary. Set `chosen_asset_id`.
-- **Stage 5 (Acquire):** Download chosen stills, normalize (resize/format), upload to Spaces.
-- **Stage 6 (Package):** Build numbered files + `manifest.txt`, zip, upload to Spaces `output/`.
-- Frontend: Wire segment review UI, asset swap, download link.
+- **Stage 1 (Transcribe):** OpenAI Whisper API integration with word-level timeline. Graceful fallback when no API key.
+- **Stage 2 (Segment):** GPT-4o semantic segmentation with theme labels, summaries, and search queries. Graceful fallback.
+- **Stage 3 (Search - Stills):** Three source adapters implemented: Wikimedia Commons, Library of Congress, Internet Archive. All use public APIs (no key required).
+- **Stage 4 (Rank):** GPT-4o Vision scores candidate thumbnails against segment summary. Graceful fallback to default scores.
+- **Stage 5 (Acquire):** Download chosen stills via adapter fetch or httpx, normalize with Pillow (resize/convert to JPEG), upload to Spaces. Thumbnails generated and uploaded.
+- **Stage 6 (Package):** ZIP with numbered files (01.jpg, 02.jpg, ...) + manifest.txt with timestamp ranges, source, license, attribution.
+- Frontend: Segment review UI with asset thumbnails, click-to-swap, download button for review/complete status.
 
 ## Phase 2 — Polish & User Experience
 

@@ -41,7 +41,7 @@ erDiagram
 ### Asset
 - `id`, `segment_id` (FK), `media_type` (MediaType)
 - Source: `source_name`, `source_url`, `license`, `attribution`
-- Storage: `thumbnail_key`, `spaces_key` (Spaces object keys)
+- Storage: `thumbnail_url` (source thumbnail URL), `thumbnail_key`, `spaces_key` (Spaces object keys)
 - Dimensions: `width`, `height`, `duration_s`
 - Ranking: `relevance_score`, `is_chosen`, `status` (AssetStatus)
 - Relationship: `segment`

@@ -57,6 +57,8 @@ def generate(project_id: int, db: Session = Depends(get_db), user: User = Depend
     project = _owned(db, user, project_id)
     if not project.source_audio_key:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a voiceover first")
+    if not project.source_text_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload an article text first")
     project.status = ProjectStatus.processing
     db.commit()
     db.refresh(project)
@@ -67,6 +69,6 @@ def generate(project_id: int, db: Session = Depends(get_db), user: User = Depend
 @router.get("/{project_id}/download", response_model=DownloadOut)
 def download(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     project = _owned(db, user, project_id)
-    if project.status != ProjectStatus.complete:
+    if project.status not in (ProjectStatus.complete, ProjectStatus.review):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Package not ready")
     return DownloadOut(url=presigned_url(f"output/project_{project.id}.zip"))

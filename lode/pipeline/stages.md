@@ -1,68 +1,48 @@
 # Pipeline Stages
 
-Six stages in `backend/app/pipeline/stages.py`, orchestrated by `run_pipeline` in `backend/app/tasks.py`.
+Six stages in `backend/app/pipeline/stages.py`, orchestrated by `run_pipeline` in `backend/app/tasks.py`. All stages have real implementations as of Phase 1. AI stages gracefully degrade when `OPENAI_API_KEY` is not set.
 
 ## Stage 1: Transcribe & Align (Whisper)
 
-```python
-def transcribe(db: Session, project: Project) -> dict
-```
 - **Input**: `project.source_audio_key` (Spaces object key for uploaded audio)
 - **Output**: `{"duration_s": float, "words": [{"word": str, "start_s": float, "end_s": float}]}`
-- **Phase 0**: Returns placeholder with `words: []` and `duration_s` from project.
-- **Phase 1**: Call OpenAI Whisper API on the audio file, parse word-level timestamps.
+- **Implementation**: Downloads audio from Spaces, calls `transcribe_audio()` in `backend/app/ai.py` which uses OpenAI Whisper API with `response_format="verbose_json"` and `timestamp_granularities=["word"]`. Updates `project.audio_duration_s` with measured duration.
+- **Fallback**: Returns `{"duration_s": 0.0, "words": []}` if no API key or no audio uploaded.
 
 ## Stage 2: Semantic Segmentation (GPT-4o)
 
-```python
-def segment(db: Session, project: Project, transcript: dict) -> list[Segment]
-```
-- **Input**: Transcript dict + `project.source_text_key` (article text)
+- **Input**: Transcript dict + `project.source_text_key` (article text loaded from Spaces)
 - **Output**: List of `Segment` records with `index`, `start_s`, `end_s`, `duration_s`, `theme_label`, `summary`, `search_query`
-- **Phase 0**: Creates one placeholder segment covering full duration.
-- **Phase 1**: Send article text + transcript to GPT-4o, parse thematic breakpoints, create Segment records.
+- **Implementation**: Calls `segment_text()` in `backend/app/ai.py` which sends article text + transcript to GPT-4o with a system prompt asking for thematic segments (~30s each, max 40). Uses JSON response format. Clears old segments on re-runs.
+- **Fallback**: Creates a single placeholder segment covering full duration.
 
 ## Stage 3: Media Search (Stills + Video)
 
-```python
-def search_media(db: Session, project: Project, segments: list[Segment]) -> None
-```
 - **Input**: Segments with `search_query` + project `media_mix` and `visual_style`
 - **Output**: `Asset` records (candidates) per segment
-- **Phase 0**: No-op.
-- **Phase 1**: Query still image adapters (Wikimedia, Flickr Commons, Internet Archive) per segment.
-- **Phase 3**: Add video adapters (Pexels, Internet Archive video). Enforce media_mix policy.
+- **Implementation**: Queries registered source adapters based on `media_mix` policy. Each adapter's `search()` is called via `asyncio.run()` with the segment's search query and visual style. Creates `Asset` DB records for each candidate. Clears old assets on re-runs.
+- **Adapters**: Wikimedia Commons, Library of Congress, Internet Archive (all stills, all public APIs, no key required).
+- **Media mix enforcement**: `stills` → only still adapters; `video` → only video adapters; `balanced` → both; `ai_judgement` → stills only (Phase 1).
 
 ## Stage 4: Rank & Match (GPT-4o Vision)
 
-```python
-def rank_match(db: Session, project: Project, segments: list[Segment]) -> None
-```
-- **Input**: Segments with candidate Assets (thumbnails)
-- **Output**: Sets `chosen_media_type` and `chosen_asset_id` on each Segment, `is_chosen` on Asset
-- **Phase 0**: Sets `chosen_media_type = still` on all segments.
-- **Phase 1**: GPT-4o Vision scores candidate thumbnails against segment summary. Select best per segment.
+- **Input**: Segments with candidate Assets (thumbnail URLs)
+- **Output**: Sets `chosen_media_type` and `chosen_asset_id` on each Segment, `is_chosen` and `relevance_score` on Asset
+- **Implementation**: Calls `rank_candidates()` in `backend/app/ai.py` which sends thumbnail URLs to GPT-4o Vision with the segment summary and search query. GPT-4o returns relevance scores (0.0-1.0). Maps scores back to assets by URL, picks highest-scored asset.
+- **Fallback**: Assigns default score 0.5 to all candidates, picks first.
 
-## Stage 5: Acquire, Trim & Normalize (ffmpeg)
+## Stage 5: Acquire, Trim & Normalize
 
-```python
-def acquire_process(db: Session, project: Project, segments: list[Segment]) -> None
-```
 - **Input**: Segments with chosen Assets
 - **Output**: Downloaded/processed media in Spaces, `Asset.status = processed`
-- **Phase 0**: No-op.
-- **Phase 1**: Download chosen stills, normalize (resize, format conversion), upload to Spaces.
-- **Phase 3**: Trim video clips to segment duration, normalize codec/resolution, apply Ken Burns to stills.
+- **Implementation (stills)**: `_process_still()` downloads the image via the source adapter's `fetch()` method or direct `httpx.get()`. Normalizes with Pillow (`image_to_bytes()` — resize to max 1920x1080, convert to JPEG at 90% quality). Generates thumbnail (`thumbnail_to_bytes()` — 400px wide). Uploads both to Spaces. Updates `asset.spaces_key`, `asset.thumbnail_key`, `asset.width`, `asset.height`.
+- **Video**: Deferred to Phase 3. Sets `Asset.status = failed` for video assets.
 
 ## Stage 6: Package ZIP + Manifest
 
-```python
-def package(db: Session, project: Project, segments: list[Segment]) -> str
-```
 - **Input**: Segments with processed Assets
 - **Output**: Spaces key for the output ZIP
-- **Phase 0**: Returns placeholder key `output/project_{id}.zip`.
-- **Phase 1**: Build numbered media files (`01.jpg`, `02.mp4`, ...), write `manifest.txt` with timestamp mappings and attributions, zip everything, upload to Spaces.
+- **Implementation**: Builds ZIP in memory with `zipfile.ZipFile`. For each segment with a processed chosen asset, downloads the media from Spaces and adds it as a numbered file (`01.jpg`, `02.jpg`, ...). Writes `manifest.txt` with tab-separated columns: filename, timestamp range, theme label, source, license, attribution. Uploads ZIP to Spaces at `output/project_{id}.zip`.
 
 ## Progress Percentages
 
