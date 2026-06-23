@@ -21,14 +21,15 @@
 - **Stage 6 (Package):** ZIP with numbered files (01.jpg, 02.jpg, ...) + manifest.txt with timestamp ranges, source, license, attribution.
 - Frontend: Segment review UI with asset thumbnails, click-to-swap, download button for review/complete status.
 
-## Phase 2 — Polish & User Experience
+## Phase 2 — Polish & User Experience (IN PROGRESS)
 
-- Source adapter management UI (enable/disable, priority)
-- Visual style picker with presets
-- AI-generated images toggle (DALL-E / SD)
-- Ken Burns motion on stills (ffmpeg pan/zoom)
-- Animated maps for geographic segments
-- Project history and re-generation
+- Source adapter management UI (enable/disable, priority) — DONE
+- Visual style picker with presets — TODO
+- AI-generated images toggle (DALL-E 3 fallback) — DONE
+- Ken Burns motion on stills (ffmpeg pan/zoom) — TODO (Phase 3)
+- Animated maps for geographic segments — TODO (Phase 3)
+- Project re-generation support — DONE
+- Additional source adapters: The Met, Smithsonian Open Access — DONE
 
 ## Phase 3 — Video Pipeline
 

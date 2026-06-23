@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Film, Image as ImageIcon, Plus } from "lucide-react";
+import { Film, Image as ImageIcon, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -29,15 +29,23 @@ export default function Dashboard() {
           <Film className="text-accent2" />
           <h1 className="text-2xl font-bold text-white">Natal Image Factory</h1>
         </div>
-        <button
-          onClick={() => {
-            localStorage.removeItem("token");
-            navigate("/login");
-          }}
-          className="text-sm text-slate-400 hover:text-white"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate("/settings/sources")}
+            className="flex items-center gap-1 text-sm text-slate-400 hover:text-white"
+          >
+            <Settings size={16} /> Sources
+          </button>
+          <button
+            onClick={() => {
+              localStorage.removeItem("token");
+              navigate("/login");
+            }}
+            className="text-sm text-slate-400 hover:text-white"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <div className="mb-8 flex gap-2">

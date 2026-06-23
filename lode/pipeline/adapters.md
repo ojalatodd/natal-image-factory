@@ -52,14 +52,26 @@ Adapters register themselves via `register()` at import time. The pipeline impor
 - **Fetch**: Direct HTTP download with redirects.
 - **Retry**: 3 attempts with exponential backoff.
 
-## Planned Adapters (Phase 2+)
+### The Met (`adapters/met.py`)
+- **API**: `collectionapi.metmuseum.org/public/collection/v1` (no key required)
+- **Media type**: still
+- **Search**: Searches with `hasImages=true` and `isPublicDomain=true`. Fetches individual object metadata for image URLs.
+- **Fetch**: Direct HTTP download of primary image with redirects.
+- **Retry**: 3 attempts with exponential backoff.
+
+### Smithsonian Open Access (`adapters/smithsonian.py`)
+- **API**: `api.si.edu/openaccess/api/v1.0` (free key, demo key works for basic search)
+- **Media type**: still
+- **Search**: Filters for `type:emuseum AND media_usage:CC0`. Extracts image URLs from media resources.
+- **Fetch**: Direct HTTP download with redirects.
+- **Retry**: 3 attempts with exponential backoff.
+
+## Planned Adapters (Phase 3+)
 
 | Adapter | Media Type | API Key | Phase |
 |---------|-----------|---------|-------|
-| The Met | still | None | 2 |
-| Smithsonian Open Access | still | None | 2 |
-| Europeana | still | None | 2 |
-| NASA Image Library | still | None | 2 |
+| Europeana | still | None | 3 |
+| NASA Image Library | still | None | 3 |
 | NARA (National Archives) | video | None | 3 |
 | Pexels | video | Required | 3 |
 

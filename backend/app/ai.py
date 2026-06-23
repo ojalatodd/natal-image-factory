@@ -227,3 +227,46 @@ def rank_candidates(
     except Exception as exc:
         logger.warning("Vision ranking failed, using default scores: %s", exc)
         return [{"url": c["url"], "relevance_score": 0.5} for c in candidates]
+
+
+def generate_image(prompt: str, style: str = "") -> bytes | None:
+    """Generate an image via DALL-E 3 and return PNG bytes.
+
+    Returns None if no API key or generation fails.
+    """
+    client = _get_client()
+    if client is None:
+        return None
+
+    style_suffix = ""
+    if style and style != "ai_judgement":
+        style_map = {
+            "classical_antiquity": "in the style of classical antiquity, marble fresco",
+            "medieval": "in the style of medieval illuminated manuscripts",
+            "renaissance": "in the style of Renaissance oil paintings",
+            "modern": "in a modern photographic style",
+        }
+        style_suffix = f", {style_map.get(style, style)}"
+
+    full_prompt = f"{prompt}{style_suffix}"
+
+    try:
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=full_prompt,
+            size="1792x1024",
+            quality="standard",
+            n=1,
+        )
+        image_url = response.data[0].url
+        if not image_url:
+            return None
+
+        import httpx
+
+        resp = httpx.get(image_url, timeout=60, follow_redirects=True)
+        resp.raise_for_status()
+        return resp.content
+    except Exception as exc:
+        logger.warning("DALL-E image generation failed: %s", exc)
+        return None
