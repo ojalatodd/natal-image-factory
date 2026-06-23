@@ -5,6 +5,7 @@ No API key required.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -43,23 +44,21 @@ class MetMuseumAdapter:
         if not object_ids:
             return []
 
-        candidates: list[CandidateAsset] = []
-        for oid in object_ids[:limit]:
-            try:
-                async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
+            async def _fetch_object(oid: int) -> CandidateAsset | None:
+                try:
                     obj_resp = await client.get(f"{MET_API}/objects/{oid}")
                     obj_resp.raise_for_status()
                     obj = obj_resp.json()
 
-                if not obj.get("isPublicDomain"):
-                    continue
+                    if not obj.get("isPublicDomain"):
+                        return None
 
-                primary_image = obj.get("primaryImage") or obj.get("primaryImageSmall")
-                if not primary_image:
-                    continue
+                    primary_image = obj.get("primaryImage") or obj.get("primaryImageSmall")
+                    if not primary_image:
+                        return None
 
-                candidates.append(
-                    CandidateAsset(
+                    return CandidateAsset(
                         source_name=self.name,
                         media_type="still",
                         source_url=obj.get("objectURL", f"https://www.metmuseum.org/art/collection/search/{oid}"),
@@ -69,10 +68,13 @@ class MetMuseumAdapter:
                         attribution=f"The Met: {obj.get('title', '')} — {obj.get('artistDisplayName', 'Unknown')}",
                         title=obj.get("title", ""),
                     )
-                )
-            except Exception as exc:
-                logger.debug("Met object %d failed: %s", oid, exc)
+                except Exception as exc:
+                    logger.debug("Met object %d failed: %s", oid, exc)
+                    return None
 
+            results = await asyncio.gather(*[_fetch_object(oid) for oid in object_ids[:limit]])
+
+        candidates = [c for c in results if c is not None]
         return candidates[:limit]
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))

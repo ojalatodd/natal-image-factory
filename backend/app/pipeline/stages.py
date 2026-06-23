@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app import progress, storage
 from app.ai import generate_image, rank_candidates, segment_text, transcribe_audio
-from app.models import Asset, AssetStatus, MediaMix, MediaType, Project, Segment
+from app.models import Asset, AssetStatus, MediaMix, MediaType, Project, Segment, SourceAdapterConfig
 
 # Import adapters so they register on import
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
@@ -93,6 +93,33 @@ def segment(db: Session, project: Project, transcript: dict) -> list[Segment]:
     return segments
 
 
+def _select_adapters(db: Session, project: Project):
+    """Return registered adapters filtered and ordered by the project owner's
+    SourceAdapterConfig. If the user has no saved config, return all adapters.
+    """
+    all_adapters = get_adapters()
+    configs = (
+        db.query(SourceAdapterConfig)
+        .filter(SourceAdapterConfig.user_id == project.user_id)
+        .all()
+    )
+    if not configs:
+        return all_adapters
+
+    # Map (name, media_type_str) -> config for enabled lookup and priority ordering
+    by_key = {(c.source_name, c.media_type.value): c for c in configs}
+
+    selected = []
+    for adapter in all_adapters:
+        cfg = by_key.get((adapter.name, adapter.media_type))
+        # Only include adapters explicitly enabled in the user's config
+        if cfg and cfg.enabled:
+            selected.append((cfg.priority, adapter))
+
+    selected.sort(key=lambda pair: pair[0])
+    return [adapter for _, adapter in selected]
+
+
 # ---- Stage 3: Media search (stills + video) ----
 def search_media(db: Session, project: Project, segments: list[Segment]) -> None:
     progress.publish(project.id, "search", 50, "Searching public-domain sources…")
@@ -109,8 +136,8 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
     else:  # ai_judgement
         search_types = [MediaType.still]
 
-    # Get registered adapters
-    adapters = get_adapters()
+    # Get registered adapters, filtered/ordered by the user's saved source config
+    adapters = _select_adapters(db, project)
     still_adapters = [a for a in adapters if a.media_type == "still"]
     video_adapters = [a for a in adapters if a.media_type == "video"]
 
@@ -159,21 +186,21 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
             logger.info("Segment %d: no candidates, trying DALL-E fallback", seg.index)
             ai_bytes = generate_image(query, style=style)
             if ai_bytes:
-                # Upload generated image to Spaces
-                media_key = f"media/{project.id}/{seg.index:02d}_ai.jpg"
-                thumb_key = f"thumbs/{project.id}/ai_{seg.id}.jpg"
-                storage.upload_bytes(media_key, ai_bytes, "image/jpeg")
-
-                # Generate thumbnail from the generated image
-                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                # DALL-E returns PNG; normalize through Pillow to real JPEG + dimensions
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                     tmp.write(ai_bytes)
                     tmp_path = Path(tmp.name)
                 try:
+                    normalized_bytes, width, height = image_to_bytes(tmp_path)
                     thumb_bytes = thumbnail_to_bytes(tmp_path)
-                    storage.upload_bytes(thumb_key, thumb_bytes, "image/jpeg")
-                    thumb_url = storage.public_url(thumb_key)
                 finally:
                     tmp_path.unlink(missing_ok=True)
+
+                media_key = f"media/{project.id}/{seg.index:02d}_ai.jpg"
+                thumb_key = f"thumbs/{project.id}/ai_{seg.id}.jpg"
+                storage.upload_bytes(media_key, normalized_bytes, "image/jpeg")
+                storage.upload_bytes(thumb_key, thumb_bytes, "image/jpeg")
+                thumb_url = storage.public_url(thumb_key)
 
                 asset = Asset(
                     segment_id=seg.id,
@@ -185,6 +212,8 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
                     thumbnail_url=thumb_url,
                     thumbnail_key=thumb_key,
                     spaces_key=media_key,
+                    width=width,
+                    height=height,
                     status=AssetStatus.processed,
                     is_chosen=True,
                 )

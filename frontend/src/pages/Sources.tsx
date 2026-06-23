@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Save } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { listSources, updateSources, type SourceConfig } from "../api";
@@ -29,12 +29,12 @@ export default function Sources() {
     queryFn: listSources,
   });
 
-  useState(() => {
+  useEffect(() => {
     if (serverSources && serverSources.length > 0) {
       setSources(serverSources);
+      setDirty(false);
     }
-    return null;
-  });
+  }, [serverSources]);
 
   const saveMutation = useMutation({
     mutationFn: (items: SourceConfig[]) => updateSources(items),
@@ -51,9 +51,9 @@ export default function Sources() {
 
   function movePriority(idx: number, dir: "up" | "down") {
     setSources((prev) => {
-      const next = [...prev];
       const swapWith = dir === "up" ? idx - 1 : idx + 1;
-      if (swapWith < 0 || swapWith >= next.length) return prev;
+      if (swapWith < 0 || swapWith >= prev.length) return prev;
+      const next = prev.map((s) => ({ ...s }));
       const tmp = next[idx].priority;
       next[idx].priority = next[swapWith].priority;
       next[swapWith].priority = tmp;

@@ -77,7 +77,7 @@ Adapters register themselves via `register()` at import time. The pipeline impor
 
 ## User Configuration
 
-Users configure enabled sources and priorities via `PUT /settings/sources`. Configurations are stored in the `SourceAdapterConfig` table per user. The pipeline uses all registered adapters in Phase 1; per-user enable/disable filtering is planned for Phase 2.
+Users configure enabled sources and priorities via `PUT /settings/sources`. Configurations are stored in the `SourceAdapterConfig` table per user. The pipeline's `_select_adapters()` (in `stages.py`) filters registered adapters to those explicitly enabled in the user's config and orders them by `priority` (ascending). If the user has no saved config, all registered adapters are used.
 
 ## Invariants
 
