@@ -33,8 +33,9 @@ Patterns, conventions, and constraints that matter when changing this codebase.
 ## Git
 
 - Default branch: `main`. Remote: `github.com/ojalatodd/natal-image-factory`.
-- **Branching strategy**: When implementing a new feature or development stage, create a new branch from `main` with a rational, descriptive name (e.g., `phase1-whisper-transcription`, `feat-source-adapters`, `fix-celery-progress`). Merge back to `main` via PR or fast-forward after review.
+- **Branching strategy (mandatory)**: ALWAYS create a new branch from `main` before starting any new phase, stage, or feature of development. Never commit feature work directly to `main`. Create the branch as the very first step, before writing any code. Use a rational, descriptive name (e.g., `phase1-whisper-transcription`, `feat-source-adapters`, `fix-celery-progress`). Merge back to `main` via PR or fast-forward after review.
 - Branch naming convention: `phase{n}-{feature}` for phase work, `feat-{feature}` for standalone features, `fix-{issue}` for bug fixes.
+- **Pre-commit checklist**: Before committing, ensure `.env` is never staged. After committing, push the branch to origin.
 - `.gitattributes` normalizes line endings to LF.
 - `lode/tmp/` is git-ignored (session scraps only).
 

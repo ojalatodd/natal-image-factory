@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Film, Image as ImageIcon, Plus, Settings } from "lucide-react";
+import { BrainCircuit, Film, Image as ImageIcon, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -35,6 +35,12 @@ export default function Dashboard() {
             className="flex items-center gap-1 text-sm text-slate-400 hover:text-white"
           >
             <Settings size={16} /> Sources
+          </button>
+          <button
+            onClick={() => navigate("/settings/ai")}
+            className="flex items-center gap-1 text-sm text-slate-400 hover:text-white"
+          >
+            <BrainCircuit size={16} /> AI Models
           </button>
           <button
             onClick={() => {

@@ -25,6 +25,7 @@ Hierarchical index of all lode files. **Read this first** before exploring the c
 
 - [frontend/summary.md](frontend/summary.md) — Frontend SPA overview
 - [frontend/architecture.md](frontend/architecture.md) — React app structure, routing, API layer
+- [frontend/ai-settings.md](frontend/ai-settings.md) — Global AI provider/model settings UI
 
 ## Pipeline
 

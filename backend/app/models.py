@@ -39,6 +39,13 @@ class MediaType(str, enum.Enum):
     video = "video"
 
 
+class AiProvider(str, enum.Enum):
+    openai = "openai"
+    anthropic = "anthropic"
+    gemini = "gemini"
+    deepseek = "deepseek"
+
+
 class AssetStatus(str, enum.Enum):
     candidate = "candidate"
     downloaded = "downloaded"
@@ -148,6 +155,17 @@ class SourceAdapterConfig(Base):
     media_type: Mapped[MediaType] = mapped_column(Enum(MediaType))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     priority: Mapped[int] = mapped_column(Integer, default=100)
+
+
+class AiSettings(Base):
+    __tablename__ = "ai_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
+    provider: Mapped[AiProvider] = mapped_column(Enum(AiProvider), default=AiProvider.openai)
+    model: Mapped[str] = mapped_column(String(128), default="gpt-4o-mini")
+    vision_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    image_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class Job(Base):

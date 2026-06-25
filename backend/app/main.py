@@ -11,7 +11,7 @@ from app.config import settings
 from app.database import SessionLocal, init_db
 from app.models import User
 from app.progress import channel
-from app.routers import auth, projects, segments, sources, uploads
+from app.routers import ai_settings, auth, projects, segments, sources, uploads
 from app.security import hash_password
 from app.storage import ensure_bucket
 
@@ -33,6 +33,7 @@ app.include_router(projects.router)
 app.include_router(uploads.router)
 app.include_router(segments.router)
 app.include_router(sources.router)
+app.include_router(ai_settings.router)
 
 
 def _bootstrap_user() -> None:

@@ -7,7 +7,7 @@ The backend is a Python 3.12 FastAPI application served by Uvicorn, with Celery 
 **Key modules:**
 - `config.py` — Pydantic-settings loading from `.env`
 - `database.py` — SQLAlchemy engine/session, `init_db()`
-- `models.py` — ORM models: User, Project, Segment, Asset, SourceAdapterConfig, Job
+- `models.py` — ORM models: User, Project, Segment, Asset, SourceAdapterConfig, AiSettings, Job
 - `schemas.py` — Pydantic request/response schemas
 - `security.py` — bcrypt password hashing, JWT create/decode
 - `deps.py` — FastAPI dependencies (get_db, get_current_user)
@@ -15,7 +15,7 @@ The backend is a Python 3.12 FastAPI application served by Uvicorn, with Celery 
 - `celery_app.py` — Celery app with Redis broker
 - `progress.py` — Job progress persistence + Redis pub/sub
 - `tasks.py` — `run_pipeline` Celery task
-- `ai.py` — OpenAI API helpers (Whisper transcription, GPT-4o segmentation, GPT-4o Vision ranking)
+- `ai.py` — Multi-provider AI helpers (OpenAI/Anthropic/Gemini/DeepSeek) for segmentation/ranking, OpenAI Vision and DALL-E
 - `pipeline/stages.py` — Six pipeline stage functions (Phase 1 implemented)
 - `pipeline/adapters/base.py` — SourceAdapter protocol + registry
 - `pipeline/adapters/wikimedia.py` — Wikimedia Commons adapter
@@ -30,5 +30,6 @@ The backend is a Python 3.12 FastAPI application served by Uvicorn, with Celery 
 - `uploads.py` — upload text/audio files to Spaces
 - `segments.py` — list segments, swap asset
 - `sources.py` — list/update source adapter configs
+- `ai_settings.py` — get/update global AI provider/model configuration
 
 See: [architecture.md](architecture.md), [models.md](models.md), [auth.md](auth.md), [storage.md](storage.md), [celery.md](celery.md)
