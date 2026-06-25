@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import ProjectView from "./pages/ProjectView";
+import AiSettings from "./pages/AiSettings";
 import Sources from "./pages/Sources";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -35,6 +36,14 @@ export default function App() {
         element={
           <RequireAuth>
             <Sources />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings/ai"
+        element={
+          <RequireAuth>
+            <AiSettings />
           </RequireAuth>
         }
       />

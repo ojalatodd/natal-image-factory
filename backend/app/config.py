@@ -19,8 +19,11 @@ class Settings(BaseSettings):
     # Redis / Celery
     redis_url: str = "redis://redis:6379/0"
 
-    # OpenAI
+    # OpenAI / AI providers
     openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
+    deepseek_api_key: str | None = None
 
     # Spaces / S3
     spaces_endpoint_url: str = "http://minio:9000"

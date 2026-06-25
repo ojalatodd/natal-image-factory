@@ -107,3 +107,22 @@ export async function updateSources(sources: SourceConfig[]): Promise<SourceConf
   const { data } = await api.put("/settings/sources", sources);
   return data;
 }
+
+export interface AiSettings {
+  id: number;
+  provider: string;
+  model: string;
+  vision_model: string | null;
+  image_model: string | null;
+}
+
+export async function getAiSettings(): Promise<AiSettings> {
+  const { data } = await api.get("/settings/ai");
+  return data;
+}
+
+export async function updateAiSettings(settings: AiSettings): Promise<AiSettings> {
+  const { id, ...payload } = settings;
+  const { data } = await api.put("/settings/ai", payload);
+  return data;
+}

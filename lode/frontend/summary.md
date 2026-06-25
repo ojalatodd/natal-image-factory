@@ -8,6 +8,7 @@ React 18 + Vite + TypeScript + TailwindCSS single-page application.
 - `Login.tsx` — Email/password form, calls `/api/auth/login`, stores JWT in localStorage.
 - `Dashboard.tsx` — Lists projects, creates new projects, sign-out.
 - `ProjectView.tsx` — Project detail: upload text/audio (both required for generate), configure settings (media mix, visual style, AI toggles), trigger pipeline, view live progress via WebSocket, segment review UI with asset thumbnails and click-to-swap, download ZIP (presigned URL from API).
+- `AiSettings.tsx` — Global AI provider/model configuration (provider, text model, vision model, image model).
 
 **Segment Review UI (Phase 1):**
 - Fetches segments via `listSegments(projectId)` when project status is `review` or `complete`.

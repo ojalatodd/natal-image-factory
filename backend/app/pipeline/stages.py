@@ -22,7 +22,16 @@ from sqlalchemy.orm import Session
 
 from app import progress, storage
 from app.ai import generate_image, rank_candidates, segment_text, transcribe_audio
-from app.models import Asset, AssetStatus, MediaMix, MediaType, Project, Segment, SourceAdapterConfig
+from app.models import (
+    AiSettings,
+    Asset,
+    AssetStatus,
+    MediaMix,
+    MediaType,
+    Project,
+    Segment,
+    SourceAdapterConfig,
+)
 
 # Import adapters so they register on import
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
@@ -66,7 +75,8 @@ def segment(db: Session, project: Project, transcript: dict) -> list[Segment]:
         except Exception as exc:
             logger.warning("Could not load article text: %s", exc)
 
-    seg_data = segment_text(article_text, transcript)
+    ai_config = _get_ai_config(db, project)
+    seg_data = segment_text(article_text, transcript, ai_config=ai_config)
 
     # Clear old segments for re-runs
     db.query(Segment).filter(Segment.project_id == project.id).delete()
@@ -120,6 +130,10 @@ def _select_adapters(db: Session, project: Project):
     return [adapter for _, adapter in selected]
 
 
+def _get_ai_config(db: Session, project: Project) -> AiSettings | None:
+    return db.query(AiSettings).filter(AiSettings.user_id == project.user_id).first()
+
+
 # ---- Stage 3: Media search (stills + video) ----
 def search_media(db: Session, project: Project, segments: list[Segment]) -> None:
     progress.publish(project.id, "search", 50, "Searching public-domain sources…")
@@ -140,6 +154,8 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
     adapters = _select_adapters(db, project)
     still_adapters = [a for a in adapters if a.media_type == "still"]
     video_adapters = [a for a in adapters if a.media_type == "video"]
+
+    ai_config = _get_ai_config(db, project)
 
     for seg in segments:
         # Clear old assets for re-runs
@@ -184,7 +200,7 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
         asset_count = db.query(Asset).filter(Asset.segment_id == seg.id).count()
         if asset_count == 0 and project.ai_images_enabled and MediaType.still in types_to_search:
             logger.info("Segment %d: no candidates, trying DALL-E fallback", seg.index)
-            ai_bytes = generate_image(query, style=style)
+            ai_bytes = generate_image(query, style=style, ai_config=ai_config)
             if ai_bytes:
                 # DALL-E returns PNG; normalize through Pillow to real JPEG + dimensions
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -233,6 +249,8 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
 def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
     progress.publish(project.id, "rank", 65, "Ranking candidate media…")
 
+    ai_config = _get_ai_config(db, project)
+
     for seg in segments:
         # Skip if already chosen (e.g., DALL-E fallback in search stage)
         if seg.chosen_asset_id:
@@ -251,7 +269,12 @@ def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
         ]
 
         if candidates_with_urls:
-            scored = rank_candidates(seg.summary or "", seg.search_query or "", candidates_with_urls)
+            scored = rank_candidates(
+                seg.summary or "",
+                seg.search_query or "",
+                candidates_with_urls,
+                ai_config=ai_config,
+            )
 
             # Map scores back to assets by URL
             for score_entry in scored:

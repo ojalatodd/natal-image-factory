@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from app.models import AssetStatus, MediaMix, MediaType, ProjectStatus
+from app.models import AiProvider, AssetStatus, MediaMix, MediaType, ProjectStatus
 
 
 # ---- Auth ----
@@ -107,6 +107,19 @@ class SourceConfigIn(BaseModel):
 
 
 class SourceConfigOut(SourceConfigIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+# ---- AI Settings ----
+class AiConfigIn(BaseModel):
+    provider: AiProvider
+    model: str
+    vision_model: str | None = None
+    image_model: str | None = None
+
+
+class AiConfigOut(AiConfigIn):
     model_config = ConfigDict(from_attributes=True)
     id: int
 
