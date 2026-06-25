@@ -89,3 +89,21 @@ export async function getDownloadUrl(projectId: string | number): Promise<string
   const { data } = await api.get(`/projects/${projectId}/download`);
   return data.url;
 }
+
+export interface SourceConfig {
+  id?: number;
+  source_name: string;
+  media_type: string;
+  enabled: boolean;
+  priority: number;
+}
+
+export async function listSources(): Promise<SourceConfig[]> {
+  const { data } = await api.get("/settings/sources");
+  return data;
+}
+
+export async function updateSources(sources: SourceConfig[]): Promise<SourceConfig[]> {
+  const { data } = await api.put("/settings/sources", sources);
+  return data;
+}

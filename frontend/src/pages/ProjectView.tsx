@@ -160,7 +160,7 @@ export default function ProjectView() {
         className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3 font-semibold text-white hover:bg-blue-600 disabled:opacity-40"
       >
         {project.status === "processing" ? <RefreshCw size={18} className="animate-spin" /> : <Sparkles size={18} />}
-        {project.status === "processing" ? "Processing…" : "Generate"}
+        {project.status === "processing" ? "Processing…" : showSegments ? "Regenerate" : "Generate"}
       </button>
 
       {/* Progress bar */}

@@ -52,11 +52,12 @@ class SourceAdapter(Protocol):
 
 
 # Registry populated by concrete adapter modules as they are implemented.
-_REGISTRY: dict[str, SourceAdapter] = {}
+# Keyed by (name, media_type) so same-named still/video adapters don't collide.
+_REGISTRY: dict[tuple[str, MediaTypeStr], SourceAdapter] = {}
 
 
 def register(adapter: SourceAdapter) -> SourceAdapter:
-    _REGISTRY[adapter.name] = adapter
+    _REGISTRY[(adapter.name, adapter.media_type)] = adapter
     return adapter
 
 

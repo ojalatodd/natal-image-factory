@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     pexels_api_key: str | None = None
     pixabay_api_key: str | None = None
     unsplash_access_key: str | None = None
+    smithsonian_api_key: str | None = None
 
     @property
     def is_production(self) -> bool:

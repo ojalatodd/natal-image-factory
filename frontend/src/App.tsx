@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import ProjectView from "./pages/ProjectView";
+import Sources from "./pages/Sources";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem("token");
@@ -26,6 +27,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ProjectView />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings/sources"
+        element={
+          <RequireAuth>
+            <Sources />
           </RequireAuth>
         }
       />
