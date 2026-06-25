@@ -155,6 +155,8 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
     still_adapters = [a for a in adapters if a.media_type == "still"]
     video_adapters = [a for a in adapters if a.media_type == "video"]
 
+    ai_config = _get_ai_config(db, project)
+
     for seg in segments:
         # Clear old assets for re-runs
         db.query(Asset).filter(Asset.segment_id == seg.id).delete()
@@ -198,7 +200,7 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
         asset_count = db.query(Asset).filter(Asset.segment_id == seg.id).count()
         if asset_count == 0 and project.ai_images_enabled and MediaType.still in types_to_search:
             logger.info("Segment %d: no candidates, trying DALL-E fallback", seg.index)
-            ai_bytes = generate_image(query, style=style, ai_config=_get_ai_config(db, project))
+            ai_bytes = generate_image(query, style=style, ai_config=ai_config)
             if ai_bytes:
                 # DALL-E returns PNG; normalize through Pillow to real JPEG + dimensions
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:

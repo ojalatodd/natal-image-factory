@@ -1,8 +1,9 @@
 """AI helpers for transcription, segmentation, ranking, and image generation.
 
 Supports multiple providers (OpenAI, Anthropic, Gemini, DeepSeek) for
-text-based stages, with OpenAI Vision for image ranking and DALL-E for
-image generation. All functions gracefully degrade when keys are missing.
+text-based stages (segmentation, text ranking). Whisper transcription,
+Vision-based image ranking, and DALL-E image generation are OpenAI-only.
+All functions gracefully degrade when keys are missing.
 """
 from __future__ import annotations
 
@@ -19,6 +20,24 @@ from app.config import settings
 logger = logging.getLogger("natal")
 
 _client: OpenAI | None = None
+
+
+def _safe_json_loads(text: str) -> dict[str, Any] | None:
+    """Parse JSON from text that may be wrapped in markdown fences or prose."""
+    import re
+
+    # Strip markdown code fences: ```json\n...\n``` or ```\n...\n```
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1)
+    # Try to extract the first {...} block if surrounding prose
+    brace_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if brace_match:
+        text = brace_match.group(0)
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -115,7 +134,7 @@ def _anthropic_json_chat(
     resp.raise_for_status()
     data = resp.json()
     text = (data.get("content") or [{}])[0].get("text", "{}")
-    return json.loads(text)
+    return _safe_json_loads(text)
 
 
 def _gemini_json_chat(
@@ -146,7 +165,7 @@ def _gemini_json_chat(
         .get("parts", [{}])[0]
         .get("text", "{}")
     )
-    return json.loads(text)
+    return _safe_json_loads(text)
 
 
 def _deepseek_json_chat(
@@ -169,11 +188,12 @@ def _deepseek_json_chat(
         "max_tokens": max_tokens,
     }
     headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
+    payload["response_format"] = {"type": "json_object"}
     resp = httpx.post("https://api.deepseek.com/chat/completions", json=payload, headers=headers, timeout=60)
     resp.raise_for_status()
     data = resp.json()
     text = data.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-    return json.loads(text)
+    return _safe_json_loads(text)
 
 
 def _chat_json(
@@ -452,9 +472,8 @@ def generate_image(prompt: str, style: str = "", *, ai_config: AiModelConfig | A
     Returns None if provider is unavailable or generation fails.
     """
     resolved = _resolve_config(ai_config)
-    if resolved.provider != "openai":
-        return None
 
+    # DALL-E is OpenAI-only; fall back to OpenAI if another provider is selected
     client = _get_client()
     if client is None:
         return None
