@@ -1,13 +1,17 @@
 """ffmpeg / ffprobe helpers for the video b-roll engine.
 
 Full duration-aware fitting, sub-clip extraction, normalization, and the
-"Motion from Stills" (Ken Burns) effect are implemented in Phases 3-4.
-These signatures define the contract used by the pipeline.
+"Motion from Stills" (Ken Burns) effect.
 """
 from __future__ import annotations
 
+import logging
+import random
 import shutil
+import subprocess
 from pathlib import Path
+
+logger = logging.getLogger("natal")
 
 
 def ffmpeg_available() -> bool:
@@ -49,5 +53,77 @@ def ken_burns_from_still(
     height: int = 1080,
     fps: int = 30,
 ) -> Path:
-    """Produce a slow pan/zoom MP4 from a still image (Phase 4)."""
-    raise NotImplementedError("Ken Burns motion lands in Phase 4")
+    """Produce a slow pan/zoom MP4 from a still image using ffmpeg zoompan.
+
+    Randomly selects a zoom direction (in, out) and pan direction to create
+    variety across segments. The output is an H.264 MP4 at the given resolution.
+    """
+    if not ffmpeg_available():
+        raise RuntimeError("ffmpeg not available in this environment")
+
+    total_frames = int(duration_s * fps)
+    # Zoom range: 1.0 to 1.3 (30% zoom) — subtle, documentary-style
+    zoom_start = 1.0
+    zoom_end = 1.3
+
+    # Randomly choose zoom in or out
+    zoom_in = random.choice([True, False])
+    if not zoom_in:
+        zoom_start, zoom_end = zoom_end, zoom_start
+
+    # Pan direction: pick a random target corner/center offset
+    pan_options = ["left", "right", "up", "down", "center"]
+    pan_dir = random.choice(pan_options)
+
+    # Build zoompan filter expressions
+    # z = zoom factor at frame i, x/y = pan position
+    if zoom_in:
+        z_expr = f"min(zoom+{(zoom_end - zoom_start) / total_frames:.8f},{zoom_end})"
+    else:
+        z_expr = f"if(eq(on,0),{zoom_start},max(zoom-{(zoom_start - zoom_end) / total_frames:.8f},{zoom_end}))"
+
+    # Pan positions (centered by default, offset by direction)
+    pan_x = "iw/2-(iw/zoom/2)"
+    pan_y = "ih/2-(ih/zoom/2)"
+    if pan_dir == "left":
+        pan_x = "0"
+    elif pan_dir == "right":
+        pan_x = "iw-iw/zoom"
+    elif pan_dir == "up":
+        pan_y = "0"
+    elif pan_dir == "down":
+        pan_y = "ih-ih/zoom"
+
+    # zoompan filter: upscale input first to avoid pixelation, then apply zoom/pan
+    # The 'd' parameter sets how many frames the effect lasts
+    filter_complex = (
+        f"scale={width * 2}:{height * 2}:force_original_aspect_ratio=increase,"
+        f"crop={width * 2}:{height * 2},"
+        f"zoompan=z='{z_expr}':x='{pan_x}':y='{pan_y}':"
+        f"d={total_frames}:s={width}x{height}:fps={fps}"
+    )
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", str(src),
+        "-vf", filter_complex,
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-t", f"{duration_s:.3f}",
+        "-r", str(fps),
+        "-preset", "fast",
+        "-crf", "23",
+        "-movflags", "+faststart",
+        str(dest),
+    ]
+
+    logger.info("Ken Burns: %s -> %s (%.1fs, %d frames, zoom_%s pan_%s)",
+                src.name, dest.name, duration_s, total_frames,
+                "in" if zoom_in else "out", pan_dir)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
+
+    return dest

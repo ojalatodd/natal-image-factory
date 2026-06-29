@@ -33,6 +33,7 @@ export interface Asset {
   thumbnail_url: string | null;
   thumbnail_key: string | null;
   spaces_key: string | null;
+  video_key: string | null;
   width: number | null;
   height: number | null;
   duration_s: number | null;
@@ -87,6 +88,11 @@ export async function swapAsset(segmentId: number, assetId: number): Promise<Seg
 
 export async function getDownloadUrl(projectId: string | number): Promise<string> {
   const { data } = await api.get(`/projects/${projectId}/download`);
+  return data.url;
+}
+
+export async function getVideoUrl(segmentId: number): Promise<string> {
+  const { data } = await api.get(`/segments/${segmentId}/video-url`);
   return data.url;
 }
 

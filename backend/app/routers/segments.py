@@ -5,6 +5,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Asset, Project, Segment, User
 from app.schemas import SegmentOut, SegmentSwap
+from app.storage import presigned_url
 
 router = APIRouter(tags=["segments"])
 
@@ -44,3 +45,21 @@ def swap_segment(
     db.commit()
     db.refresh(seg)
     return seg
+
+
+@router.get("/segments/{segment_id}/video-url")
+def get_video_url(
+    segment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return a presigned URL for the Ken Burns video clip of the chosen asset."""
+    seg = db.get(Segment, segment_id)
+    if not seg or seg.project.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Segment not found")
+
+    asset = db.get(Asset, seg.chosen_asset_id) if seg.chosen_asset_id else None
+    if not asset or not asset.video_key:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No video clip for this segment")
+
+    return {"url": presigned_url(asset.video_key)}

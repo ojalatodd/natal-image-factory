@@ -3,7 +3,7 @@ import { CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, Trash2 } fro
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { api, deleteProject, getCostEstimate, getDownloadUrl, listSegments, listVisualStyles, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
+import { api, deleteProject, getCostEstimate, getDownloadUrl, getVideoUrl, listSegments, listVisualStyles, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
 
 interface ProgressEvent {
   stage: string;
@@ -279,6 +279,21 @@ export default function ProjectView() {
                 {seg.chosen_asset_id && (
                   <div className="mb-2">
                     <p className="mb-1 text-xs text-green-400">✓ Chosen: {seg.assets.find(a => a.id === seg.chosen_asset_id)?.source_name}</p>
+                    {seg.assets.find(a => a.id === seg.chosen_asset_id)?.video_key && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const url = await getVideoUrl(seg.id);
+                            window.open(url, "_blank");
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        className="flex items-center gap-1 text-xs text-accent hover:text-blue-400"
+                      >
+                        ▶ Preview Ken Burns motion
+                      </button>
+                    )}
                   </div>
                 )}
 

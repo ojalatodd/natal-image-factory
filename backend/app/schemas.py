@@ -80,6 +80,7 @@ class AssetOut(BaseModel):
     thumbnail_url: str | None
     thumbnail_key: str | None
     spaces_key: str | None
+    video_key: str | None
     width: int | None
     height: int | None
     duration_s: float | None

@@ -24,9 +24,9 @@
 ## Phase 2 — Polish & User Experience (IN PROGRESS)
 
 - Source adapter management UI (enable/disable, priority) — DONE
-- Visual style picker with presets — TODO
+- Visual style picker with presets — DONE
 - AI-generated images toggle (DALL-E 3 fallback) — DONE
-- Ken Burns motion on stills (ffmpeg pan/zoom) — TODO (Phase 3)
+- Ken Burns motion on stills (ffmpeg pan/zoom) — DONE
 - Animated maps for geographic segments — TODO (Phase 3)
 - Project re-generation support — DONE
 - Additional source adapters: The Met, Smithsonian Open Access — DONE
