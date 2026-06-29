@@ -39,6 +39,18 @@ Patterns, conventions, and constraints that matter when changing this codebase.
 - `.gitattributes` normalizes line endings to LF.
 - `lode/tmp/` is git-ignored (session scraps only).
 
+## GitHub Workflow
+
+- **Issue creation (mandatory)**: When you discover a bug, tech debt, or improvement opportunity during development, **always create a GitHub issue** using `gh issue create`. Include:
+  - Clear title with severity prefix (e.g., "bug:", "chore:", "enhancement:")
+  - Context section explaining what was found and where
+  - Reproduction steps (for bugs) or rationale (for tech debt)
+  - Files involved
+  - Priority: High / Medium / Low
+  - Appropriate labels (`bug`, `enhancement`, etc.)
+- **Issue closure on merge (mandatory)**: When creating a PR that resolves one or more issues, **always reference the issue numbers** in the PR body using `Closes #N` or `Fixes #N` syntax. GitHub will auto-close the associated issues when the PR is merged. Verify closure after merge.
+- **PR conventions**: Every PR must include a body with: Summary, Changes (per file), Verification/Test Results, and Issues Resolved sections. Review every PR before merging — post review comments on the PR first, then merge if approved.
+
 ## Lode Coding
 
 - The `lode/` directory is the AI's persistent memory. It describes **current state**, not changelog history.
