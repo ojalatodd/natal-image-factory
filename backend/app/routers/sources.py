@@ -15,10 +15,11 @@ DEFAULT_CATALOG = [
     {"source_name": "The Met", "media_type": "still", "priority": 30},
     {"source_name": "Smithsonian Open Access", "media_type": "still", "priority": 40},
     {"source_name": "Europeana", "media_type": "still", "priority": 50},
-    {"source_name": "Internet Archive", "media_type": "video", "priority": 10},
-    {"source_name": "National Archives (NARA)", "media_type": "video", "priority": 20},
-    {"source_name": "NASA", "media_type": "video", "priority": 30},
-    {"source_name": "Pexels", "media_type": "video", "priority": 40},
+    {"source_name": "Wikimedia Commons Video", "media_type": "video", "priority": 10},
+    {"source_name": "Internet Archive", "media_type": "video", "priority": 20},
+    {"source_name": "National Archives (NARA)", "media_type": "video", "priority": 30},
+    {"source_name": "NASA", "media_type": "video", "priority": 40},
+    {"source_name": "Pexels", "media_type": "video", "priority": 50},
 ]
 
 

@@ -38,10 +38,43 @@ def trim_and_normalize(
 ) -> Path:
     """Extract a sub-clip, strip audio, and normalize to a common format.
 
-    Placeholder: Phase 3 wires the full ffmpeg invocation described in
-    Technical-Implementation-Plan.md §7.2.
+    - Seeks to start_s, extracts duration_s seconds
+    - Scales to fit within width x height (preserving aspect ratio, padding if needed)
+    - Converts to H.264, yuv420p, 30fps, faststart
+    - Strips audio (voiceover is mixed separately in the final edit)
     """
-    raise NotImplementedError("Video trim/normalize lands in Phase 3")
+    if not ffmpeg_available():
+        raise RuntimeError("ffmpeg not available in this environment")
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", f"{start_s:.3f}",
+        "-i", str(src),
+        "-t", f"{duration_s:.3f}",
+        "-an",
+        "-vf", (
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+            f"fps={fps}"
+        ),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-preset", "fast",
+        "-crf", "23",
+        "-movflags", "+faststart",
+        str(dest),
+    ]
+
+    logger.info(
+        "trim_and_normalize: %s -> %s (start=%.1fs, dur=%.1fs, %dx%d@%dfps)",
+        src.name, dest.name, start_s, duration_s, width, height, fps,
+    )
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
+
+    return dest
 
 
 def ken_burns_from_still(
@@ -125,5 +158,37 @@ def ken_burns_from_still(
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
+
+    return dest
+
+
+def extract_thumbnail(
+    src: Path,
+    dest: Path,
+    *,
+    at_s: float = 1.0,
+    width: int = 320,
+) -> Path:
+    """Extract a single frame from a video as a JPEG thumbnail.
+
+    Seeks to at_s (default 1s to avoid black fade-in frames) and captures
+    a single frame scaled to width pixels (preserving aspect ratio).
+    """
+    if not ffmpeg_available():
+        raise RuntimeError("ffmpeg not available in this environment")
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", f"{at_s:.3f}",
+        "-i", str(src),
+        "-frames:v", "1",
+        "-vf", f"scale={width}:-1",
+        "-q:v", "3",
+        str(dest),
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg thumbnail extraction failed: {result.stderr[-500:]}")
 
     return dest

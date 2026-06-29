@@ -36,9 +36,16 @@ from app.visual_styles import get_visual_style_prompt
 
 # Import adapters so they register on import
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
+from app.pipeline.adapters import wikimedia_video  # noqa: F401
 from app.pipeline.adapters.base import CandidateAsset, get_adapters
 from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
-from app.pipeline.media import ffmpeg_available, ken_burns_from_still
+from app.pipeline.media import (
+    extract_thumbnail,
+    ffmpeg_available,
+    ken_burns_from_still,
+    probe_duration,
+    trim_and_normalize,
+)
 
 logger = logging.getLogger("natal")
 
@@ -323,8 +330,7 @@ def acquire_process(db: Session, project: Project, segments: list[Segment]) -> N
             if asset.media_type == MediaType.still:
                 _process_still(db, project, seg, asset)
             else:
-                asset.status = AssetStatus.failed
-                logger.warning("Video processing not yet implemented for segment %d", seg.index)
+                _process_video(db, project, seg, asset)
 
             db.commit()
         except Exception as exc:
@@ -391,6 +397,91 @@ def _process_still(db: Session, project: Project, seg: Segment, asset: Asset) ->
         asset.status = AssetStatus.processed
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def _process_video(db: Session, project: Project, seg: Segment, asset: Asset) -> None:
+    """Download a video, trim to segment duration, normalize, and upload to Spaces."""
+    adapters = get_adapters(media_type="video")
+    adapter = None
+    for a in adapters:
+        if a.name == asset.source_name:
+            adapter = a
+            break
+
+    # Download the source video to a temp file
+    raw_path = Path(tempfile.mktemp(suffix="_src.mp4"))
+    norm_path = Path(tempfile.mktemp(suffix="_norm.mp4"))
+    thumb_path = Path(tempfile.mktemp(suffix="_thumb.jpg"))
+
+    try:
+        if adapter and asset.download_url:
+            candidate = CandidateAsset(
+                source_name=asset.source_name,
+                media_type="video",
+                source_url=asset.source_url or "",
+                thumbnail_url=asset.thumbnail_url,
+                download_url=asset.download_url,
+                license=asset.license,
+                attribution=asset.attribution,
+                duration_s=asset.duration_s,
+            )
+            asyncio.run(adapter.fetch(candidate, raw_path))
+        else:
+            resp = httpx.get(asset.download_url or asset.source_url or "", timeout=120, follow_redirects=True)
+            resp.raise_for_status()
+            raw_path.write_bytes(resp.content)
+
+        # Probe actual duration if not already known
+        actual_duration = asset.duration_s or 0.0
+        if not actual_duration and ffmpeg_available():
+            try:
+                actual_duration = probe_duration(raw_path)
+            except Exception as exc:
+                logger.warning("Could not probe duration for asset %d: %s", asset.id, exc)
+
+        # Determine trim parameters
+        seg_duration = max(seg.duration_s, 2.0)
+        if actual_duration and actual_duration > 0:
+            # Use the video from the start, trim to segment duration
+            trim_start = 0.0
+            trim_duration = min(seg_duration, actual_duration)
+        else:
+            trim_start = 0.0
+            trim_duration = seg_duration
+
+        # Trim and normalize to 1080p H.264
+        trim_and_normalize(
+            raw_path,
+            norm_path,
+            start_s=trim_start,
+            duration_s=trim_duration,
+        )
+
+        # Extract thumbnail from the normalized clip
+        thumb_at = min(1.0, trim_duration / 2)
+        extract_thumbnail(norm_path, thumb_path, at_s=thumb_at)
+
+        # Upload normalized video and thumbnail to Spaces
+        media_key = f"media/{project.id}/{seg.index:02d}_{asset.id}.mp4"
+        thumb_key = f"thumbs/{project.id}/{asset.id}.jpg"
+
+        storage.upload_bytes(media_key, norm_path.read_bytes(), "video/mp4")
+        storage.upload_bytes(thumb_key, thumb_path.read_bytes(), "image/jpeg")
+
+        # Update asset
+        asset.spaces_key = media_key
+        asset.thumbnail_key = thumb_key
+        asset.duration_s = trim_duration
+        asset.status = AssetStatus.processed
+
+        logger.info(
+            "Processed video asset %d: %s (trimmed %.1fs from %.1fs source)",
+            asset.id, media_key, trim_duration, actual_duration,
+        )
+    finally:
+        raw_path.unlink(missing_ok=True)
+        norm_path.unlink(missing_ok=True)
+        thumb_path.unlink(missing_ok=True)
 
 
 # ---- Stage 5b: Ken Burns motion (optional) ----
