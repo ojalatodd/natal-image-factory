@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
+import httpx
+
 MediaTypeStr = Literal["still", "video"]
 
 # Descriptive User-Agent required by several public APIs (notably Wikimedia
@@ -20,6 +22,15 @@ USER_AGENT = (
     "public-domain media aggregator)"
 )
 HEADERS = {"User-Agent": USER_AGENT}
+
+
+def http_client(*, timeout: int = 30, follow_redirects: bool = False) -> httpx.AsyncClient:
+    """Return an AsyncClient pre-configured with the required User-Agent header.
+
+    Using this factory instead of ``httpx.AsyncClient(..., headers=HEADERS)``
+    makes it impossible to forget the User-Agent header in future adapters.
+    """
+    return httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects, headers=HEADERS)
 
 
 @dataclass

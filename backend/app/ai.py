@@ -16,6 +16,7 @@ import httpx
 from openai import OpenAI
 
 from app.config import settings
+from app.pipeline.adapters.base import HEADERS
 
 logger = logging.getLogger("natal")
 
@@ -502,7 +503,7 @@ def generate_image(prompt: str, style: str = "", *, ai_config: AiModelConfig | A
         if not image_url:
             return None
 
-        resp = httpx.get(image_url, timeout=60, follow_redirects=True)
+        resp = httpx.get(image_url, timeout=60, follow_redirects=True, headers=HEADERS)
         resp.raise_for_status()
         return resp.content
     except Exception as exc:
