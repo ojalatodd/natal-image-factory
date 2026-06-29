@@ -37,6 +37,7 @@ from app.visual_styles import get_visual_style_prompt
 # Import adapters so they register on import
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
 from app.pipeline.adapters import wikimedia_video  # noqa: F401
+from app.pipeline.adapters import internet_archive_video  # noqa: F401
 from app.pipeline.adapters.base import CandidateAsset, get_adapters
 from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
 from app.pipeline.media import (
@@ -158,7 +159,7 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
     elif media_mix == MediaMix.balanced:
         search_types = [MediaType.still, MediaType.video]
     else:  # ai_judgement
-        search_types = [MediaType.still]
+        search_types = [MediaType.still, MediaType.video]
 
     # Get registered adapters, filtered/ordered by the user's saved source config
     adapters = _select_adapters(db, project)
@@ -176,8 +177,6 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
         style = get_visual_style_prompt(project.visual_style)
 
         types_to_search = search_types
-        if media_mix == MediaMix.ai_judgement:
-            types_to_search = [MediaType.still]
 
         for mtype in types_to_search:
             adapter_list = still_adapters if mtype == MediaType.still else video_adapters
