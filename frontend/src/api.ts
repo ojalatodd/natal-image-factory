@@ -126,3 +126,15 @@ export async function updateAiSettings(settings: AiSettings): Promise<AiSettings
   const { data } = await api.put("/settings/ai", payload);
   return data;
 }
+
+export interface VisualStylePreset {
+  value: string;
+  label: string;
+  summary: string;
+  prompt: string;
+}
+
+export async function listVisualStyles(): Promise<VisualStylePreset[]> {
+  const { data } = await api.get("/visual-styles");
+  return data;
+}

@@ -16,6 +16,7 @@ The backend is a Python 3.12 FastAPI application served by Uvicorn, with Celery 
 - `progress.py` — Job progress persistence + Redis pub/sub
 - `tasks.py` — `run_pipeline` Celery task
 - `ai.py` — Multi-provider AI helpers (OpenAI/Anthropic/Gemini/DeepSeek) for segmentation/ranking, OpenAI Vision and DALL-E
+- `visual_styles.py` — Central registry of visual style presets (value, label, summary, prompt helpers)
 - `pipeline/stages.py` — Six pipeline stage functions (Phase 1 implemented)
 - `pipeline/adapters/base.py` — SourceAdapter protocol + registry
 - `pipeline/adapters/wikimedia.py` — Wikimedia Commons adapter
@@ -31,5 +32,6 @@ The backend is a Python 3.12 FastAPI application served by Uvicorn, with Celery 
 - `segments.py` — list segments, swap asset
 - `sources.py` — list/update source adapter configs
 - `ai_settings.py` — get/update global AI provider/model configuration
+- `visual_styles.py` — list predefined visual style presets for the frontend picker
 
 See: [architecture.md](architecture.md), [models.md](models.md), [auth.md](auth.md), [storage.md](storage.md), [celery.md](celery.md)

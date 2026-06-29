@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.models import AiProvider, AssetStatus, MediaMix, MediaType, ProjectStatus
+from app.visual_styles import is_valid_visual_style
 
 
 # ---- Auth ----
@@ -24,6 +25,14 @@ class UserOut(BaseModel):
     email: EmailStr
 
 
+# ---- Visual styles ----
+class VisualStyleOut(BaseModel):
+    value: str
+    label: str
+    summary: str
+    prompt: str
+
+
 # ---- Projects ----
 class ProjectCreate(BaseModel):
     name: str
@@ -34,6 +43,15 @@ class ProjectSettings(BaseModel):
     visual_style: str | None = None
     ai_images_enabled: bool | None = None
     ai_video_motion: bool | None = None
+
+    @field_validator("visual_style")
+    @classmethod
+    def validate_visual_style(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if not is_valid_visual_style(value):
+            raise ValueError("Invalid visual style preset")
+        return value
 
 
 class ProjectOut(BaseModel):

@@ -32,6 +32,7 @@ from app.models import (
     Segment,
     SourceAdapterConfig,
 )
+from app.visual_styles import get_visual_style_prompt
 
 # Import adapters so they register on import
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
@@ -163,7 +164,7 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
         db.commit()
 
         query = seg.search_query or seg.theme_label or project.name
-        style = project.visual_style or ""
+        style = get_visual_style_prompt(project.visual_style)
 
         types_to_search = search_types
         if media_mix == MediaMix.ai_judgement:
