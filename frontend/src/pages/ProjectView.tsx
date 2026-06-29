@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles } from "lucide-react";
+import { CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
-import { api, getDownloadUrl, listSegments, listVisualStyles, swapAsset, type Segment, type VisualStylePreset } from "../api";
+import { api, deleteProject, getCostEstimate, getDownloadUrl, listSegments, listVisualStyles, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
 
 interface ProgressEvent {
   stage: string;
@@ -32,8 +32,10 @@ function formatTimestamp(s: number): string {
 
 export default function ProjectView() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [costEst, setCostEst] = useState<CostEstimate | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const qc = useQueryClient();
 
@@ -95,8 +97,18 @@ export default function ProjectView() {
   async function generate() {
     setProgress(null);
     setDownloadUrl(null);
+    setCostEst(null);
     await api.post(`/projects/${id}/generate`);
     refetch();
+  }
+
+  async function fetchCostEstimate() {
+    try {
+      const est = await getCostEstimate(Number(id));
+      setCostEst(est);
+    } catch {
+      setCostEst(null);
+    }
   }
 
   if (!project) return <div className="p-8 text-slate-400">Loading…</div>;
@@ -106,7 +118,21 @@ export default function ProjectView() {
 
   return (
     <div className="mx-auto max-w-4xl p-8">
-      <h1 className="mb-1 text-2xl font-bold text-white">{project.name}</h1>
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">{project.name}</h1>
+        {project.status !== "processing" && (
+          <button
+            onClick={() => {
+              if (confirm(`Delete "${project.name}"? This cannot be undone.`)) {
+                deleteProject(Number(id)).then(() => navigate("/"));
+              }
+            }}
+            className="flex items-center gap-1 text-sm text-slate-500 hover:text-red-400"
+          >
+            <Trash2 size={16} /> Delete
+          </button>
+        )}
+      </div>
       <p className="mb-6 text-sm uppercase tracking-wide text-slate-400">{project.status}</p>
 
       {/* Upload section */}
@@ -169,15 +195,53 @@ export default function ProjectView() {
         </label>
       </section>
 
-      {/* Generate button */}
+      {/* Generate button + cost estimate */}
       <button
         onClick={generate}
         disabled={!canGenerate || project.status === "processing"}
-        className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3 font-semibold text-white hover:bg-blue-600 disabled:opacity-40"
+        className="mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3 font-semibold text-white hover:bg-blue-600 disabled:opacity-40"
       >
         {project.status === "processing" ? <RefreshCw size={18} className="animate-spin" /> : <Sparkles size={18} />}
         {project.status === "processing" ? "Processing…" : showSegments ? "Regenerate" : "Generate"}
       </button>
+
+      {canGenerate && project.status !== "processing" && (
+        <div className="mb-6">
+          <button
+            onClick={fetchCostEstimate}
+            className="text-xs text-slate-400 hover:text-white"
+          >
+            {costEst ? "Refresh cost estimate" : "Estimate API cost →"}
+          </button>
+          {costEst && (
+            <div className="mt-2 rounded-lg bg-surface p-3 text-xs text-slate-400">
+              <div className="mb-1 flex justify-between">
+                <span>Whisper transcription</span>
+                <span>${costEst.whisper_usd.toFixed(4)}</span>
+              </div>
+              <div className="mb-1 flex justify-between">
+                <span>Segmentation (GPT-4o-mini)</span>
+                <span>${costEst.segmentation_usd.toFixed(4)}</span>
+              </div>
+              <div className="mb-1 flex justify-between">
+                <span>Vision ranking ({costEst.estimated_segments} segments)</span>
+                <span>${costEst.ranking_usd.toFixed(4)}</span>
+              </div>
+              {costEst.dalle_fallback_usd > 0 && (
+                <div className="mb-1 flex justify-between">
+                  <span>DALL-E fallback (if needed)</span>
+                  <span>${costEst.dalle_fallback_usd.toFixed(4)}</span>
+                </div>
+              )}
+              <div className="mt-2 flex justify-between border-t border-slate-700 pt-2 font-semibold text-white">
+                <span>Estimated total</span>
+                <span>${costEst.total_usd.toFixed(4)}</span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">Based on {costEst.audio_minutes} min of audio. Actual usage may vary.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Progress bar */}
       {progress && (

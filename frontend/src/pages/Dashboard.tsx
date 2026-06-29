@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrainCircuit, Film, Image as ImageIcon, Plus, Settings } from "lucide-react";
+import { BrainCircuit, Film, Image as ImageIcon, Plus, Settings, Trash2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { createProject, listProjects } from "../api";
+import { createProject, deleteProject, getQueueStatus, listProjects } from "../api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [name, setName] = useState("");
 
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: listProjects });
+  const { data: queue = [] } = useQuery({ queryKey: ["queue"], queryFn: getQueueStatus, refetchInterval: 5000 });
 
   const create = useMutation({
     mutationFn: () => createProject(name || "Untitled Project"),
@@ -19,6 +20,11 @@ export default function Dashboard() {
       setName("");
       navigate(`/projects/${p.id}`);
     },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => deleteProject(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
 
   return (
@@ -54,6 +60,13 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {queue.length > 0 && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg bg-surface p-3 text-sm text-slate-400">
+          <Loader2 size={16} className="animate-spin text-accent" />
+          <span>{queue.length} project{queue.length > 1 ? "s" : ""} processing: {queue.map((q) => q.name).join(", ")}</span>
+        </div>
+      )}
+
       <div className="mb-8 flex gap-2">
         <input
           className="flex-1 rounded-lg bg-surface px-3 py-2 text-white outline-none ring-1 ring-card focus:ring-accent"
@@ -71,16 +84,34 @@ export default function Dashboard() {
 
       <div className="grid gap-3">
         {projects.map((p) => (
-          <button
+          <div
             key={p.id}
-            onClick={() => navigate(`/projects/${p.id}`)}
-            className="flex items-center justify-between rounded-lg bg-surface p-4 text-left hover:bg-card"
+            className="flex items-center justify-between rounded-lg bg-surface p-4 hover:bg-card"
           >
-            <span className="font-medium text-white">{p.name}</span>
-            <span className="rounded-full bg-ink px-3 py-1 text-xs uppercase tracking-wide text-slate-400">
-              {p.status}
-            </span>
-          </button>
+            <button
+              onClick={() => navigate(`/projects/${p.id}`)}
+              className="flex-1 text-left"
+            >
+              <span className="font-medium text-white">{p.name}</span>
+            </button>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-ink px-3 py-1 text-xs uppercase tracking-wide text-slate-400">
+                {p.status}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Delete "${p.name}"? This cannot be undone.`)) {
+                    del.mutate(p.id);
+                  }
+                }}
+                className="text-slate-500 hover:text-red-400"
+                title="Delete project"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
         ))}
         {projects.length === 0 && (
           <p className="text-center text-slate-500">No projects yet. Create one to get started.</p>
