@@ -128,6 +128,7 @@ class Asset(Base):
 
     source_name: Mapped[str] = mapped_column(String(128))
     source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    download_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     license: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attribution: Mapped[str | None] = mapped_column(Text, nullable=True)
 

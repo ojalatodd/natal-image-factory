@@ -75,6 +75,7 @@ class AssetOut(BaseModel):
     media_type: MediaType
     source_name: str
     source_url: str | None
+    download_url: str | None
     license: str | None
     attribution: str | None
     thumbnail_url: str | None
