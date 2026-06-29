@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.pipeline.adapters.base import HEADERS, CandidateAsset, register
+from app.pipeline.adapters.base import CandidateAsset, http_client, register
 
 logger = logging.getLogger("natal")
 
@@ -35,7 +35,7 @@ class MetMuseumAdapter:
     ) -> list[CandidateAsset]:
         # Search for objects
         params = {"q": query, "hasImages": "true", "isPublicDomain": "true"}
-        async with httpx.AsyncClient(timeout=30, headers=HEADERS) as client:
+        async with http_client(timeout=30) as client:
             resp = await client.get(f"{MET_API}/search", params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -44,7 +44,7 @@ class MetMuseumAdapter:
         if not object_ids:
             return []
 
-        async with httpx.AsyncClient(timeout=30, headers=HEADERS) as client:
+        async with http_client(timeout=30) as client:
             async def _fetch_object(oid: int) -> CandidateAsset | None:
                 try:
                     obj_resp = await client.get(f"{MET_API}/objects/{oid}")
@@ -82,7 +82,7 @@ class MetMuseumAdapter:
         url = asset.download_url or asset.thumbnail_url
         if not url:
             raise ValueError(f"No download URL for asset from {self.name}")
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True, headers=HEADERS) as client:
+        async with http_client(timeout=60, follow_redirects=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             dest.parent.mkdir(parents=True, exist_ok=True)
