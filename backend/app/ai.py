@@ -267,11 +267,10 @@ def transcribe_audio(audio_bytes: bytes, filename: str = "audio.mp3") -> dict[st
 
     import io
 
-    response = client.audio.transcriptions.with_response_format(
-        response_format="verbose_json"
-    ).create(
+    response = client.audio.transcriptions.create(
         file=(filename, io.BytesIO(audio_bytes)),
         model="whisper-1",
+        response_format="verbose_json",
         timestamp_granularities=["word"],
     )
 
@@ -280,9 +279,9 @@ def transcribe_audio(audio_bytes: bytes, filename: str = "audio.mp3") -> dict[st
     for w in raw_words:
         words.append(
             {
-                "word": w.get("word", w.get("text", "")),
-                "start_s": float(w.get("start", 0.0)),
-                "end_s": float(w.get("end", 0.0)),
+                "word": getattr(w, "word", "") or getattr(w, "text", ""),
+                "start_s": float(getattr(w, "start", 0.0)),
+                "end_s": float(getattr(w, "end", 0.0)),
             }
         )
 
