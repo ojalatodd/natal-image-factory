@@ -36,7 +36,7 @@ from app.visual_styles import get_visual_style_prompt
 
 # Import adapters so they register on import
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
-from app.pipeline.adapters.base import get_adapters
+from app.pipeline.adapters.base import CandidateAsset, get_adapters
 from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
 from app.pipeline.media import ffmpeg_available, ken_burns_from_still
 
@@ -184,6 +184,7 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
                             media_type=mtype,
                             source_name=c.source_name,
                             source_url=c.source_url,
+                            download_url=c.download_url,
                             license=c.license,
                             attribution=c.attribution,
                             thumbnail_url=c.thumbnail_url,
@@ -350,7 +351,16 @@ def _process_still(db: Session, project: Project, seg: Segment, asset: Asset) ->
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            asyncio.run(adapter.fetch(asset, tmp_path))
+            candidate = CandidateAsset(
+                source_name=asset.source_name,
+                media_type="still",
+                source_url=asset.source_url or "",
+                thumbnail_url=asset.thumbnail_url,
+                download_url=asset.download_url,
+                license=asset.license,
+                attribution=asset.attribution,
+            )
+            asyncio.run(adapter.fetch(candidate, tmp_path))
             raw_bytes = tmp_path.read_bytes()
         finally:
             tmp_path.unlink(missing_ok=True)
