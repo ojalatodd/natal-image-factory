@@ -134,6 +134,7 @@ class Asset(Base):
     thumbnail_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     thumbnail_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     spaces_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    video_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)

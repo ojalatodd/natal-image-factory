@@ -24,6 +24,7 @@ def run_pipeline(project_id: int) -> dict:
         stages.search_media(db, project, segments)
         stages.rank_match(db, project, segments)
         stages.acquire_process(db, project, segments)
+        stages.apply_ken_burns(db, project, segments)
         zip_key = stages.package(db, project, segments)
 
         progress.publish(project_id, "done", 100, "Ready for review")

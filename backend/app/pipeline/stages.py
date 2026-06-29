@@ -38,6 +38,7 @@ from app.visual_styles import get_visual_style_prompt
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
 from app.pipeline.adapters.base import get_adapters
 from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
+from app.pipeline.media import ffmpeg_available, ken_burns_from_still
 
 logger = logging.getLogger("natal")
 
@@ -381,6 +382,65 @@ def _process_still(db: Session, project: Project, seg: Segment, asset: Asset) ->
         tmp_path.unlink(missing_ok=True)
 
 
+# ---- Stage 5b: Ken Burns motion (optional) ----
+def apply_ken_burns(db: Session, project: Project, segments: list[Segment]) -> None:
+    """Generate Ken Burns pan/zoom MP4 clips from chosen still assets.
+
+    Only runs when project.ai_video_motion is True and ffmpeg is available.
+    Skips assets that already have a video_key (re-runs).
+    """
+    if not project.ai_video_motion:
+        return
+
+    if not ffmpeg_available():
+        logger.warning("Ken Burns requested but ffmpeg not available — skipping")
+        return
+
+    progress.publish(project.id, "ken_burns", 92, "Generating Ken Burns motion…")
+
+    for seg in segments:
+        if not seg.chosen_asset_id:
+            continue
+
+        asset = db.get(Asset, seg.chosen_asset_id)
+        if not asset or asset.media_type != MediaType.still:
+            continue
+        if not asset.spaces_key:
+            continue
+        if asset.video_key:
+            continue
+
+        try:
+            still_bytes = storage.download_bytes(asset.spaces_key)
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp_in:
+                tmp_in.write(still_bytes)
+                src_path = Path(tmp_in.name)
+
+            dest_path = src_path.with_suffix(".mp4")
+            try:
+                ken_burns_from_still(
+                    src_path,
+                    dest_path,
+                    duration_s=max(seg.duration_s, 2.0),
+                )
+                video_bytes = dest_path.read_bytes()
+            finally:
+                src_path.unlink(missing_ok=True)
+                dest_path.unlink(missing_ok=True)
+
+            video_key = f"video/{project.id}/{seg.index:02d}_{asset.id}.mp4"
+            storage.upload_bytes(video_key, video_bytes, "video/mp4")
+            asset.video_key = video_key
+            db.commit()
+
+            logger.info("Segment %d: Ken Burns clip generated (%.1fs)",
+                        seg.index, seg.duration_s)
+        except Exception as exc:
+            logger.warning("Ken Burns failed for segment %d: %s", seg.index, exc)
+
+    progress.publish(project.id, "ken_burns", 95, "Ken Burns motion complete")
+
+
 # ---- Stage 6: Package ZIP + manifest ----
 def package(db: Session, project: Project, segments: list[Segment]) -> str:
     progress.publish(project.id, "package", 95, "Packaging download…")
@@ -406,6 +466,13 @@ def package(db: Session, project: Project, segments: list[Segment]) -> str:
             media_bytes = storage.download_bytes(asset.spaces_key)
             zf.writestr(filename, media_bytes)
 
+            # If Ken Burns video exists, include it alongside the still
+            if asset.video_key:
+                file_index += 1
+                video_filename = f"{file_index:02d}_motion.mp4"
+                video_bytes = storage.download_bytes(asset.video_key)
+                zf.writestr(video_filename, video_bytes)
+
             # Format timestamps
             start_ts = _format_timestamp(seg.start_s)
             end_ts = _format_timestamp(seg.end_s)
@@ -415,6 +482,14 @@ def package(db: Session, project: Project, segments: list[Segment]) -> str:
                 f"Source: {asset.source_name}\tLicense: {asset.license or 'Unknown'}\t"
                 f"Attribution: {asset.attribution or 'N/A'}"
             )
+
+            if asset.video_key:
+                manifest_lines.append(
+                    f"{video_filename}\t{start_ts} - {end_ts}\t"
+                    f"Ken Burns motion (pan/zoom)\tSource: {asset.source_name}\t"
+                    f"License: {asset.license or 'Unknown'}\t"
+                    f"Attribution: {asset.attribution or 'N/A'}"
+                )
 
         # Write manifest
         manifest_content = "Natal Image Factory - Manifest\n"
