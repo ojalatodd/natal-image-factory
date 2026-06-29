@@ -506,7 +506,15 @@ def package(db: Session, project: Project, segments: list[Segment]) -> str:
         manifest_content += f"Project: {project.name}\n"
         manifest_content += f"Files: {file_index}\n"
         manifest_content += f"{'=' * 60}\n\n"
-        manifest_content += "\n".join(manifest_lines)
+        if file_index == 0:
+            manifest_content += (
+                "WARNING: No media files were packaged.\n"
+                "All assets failed to download during processing.\n"
+                "Please re-generate this project to retry.\n"
+            )
+            logger.warning("Package stage: project %d produced 0 media files — all assets failed", project.id)
+        else:
+            manifest_content += "\n".join(manifest_lines)
         manifest_content += "\n"
         zf.writestr("manifest.txt", manifest_content)
 
