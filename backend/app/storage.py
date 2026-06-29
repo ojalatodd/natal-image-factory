@@ -25,6 +25,24 @@ def _client():
     )
 
 
+def _presign_client():
+    """Client used exclusively for presigned URL generation.
+
+    Uses spaces_presign_endpoint_url if set (e.g. http://localhost:9000 in dev)
+    so the signed URL is reachable from a browser, not the internal Docker hostname.
+    Falls back to spaces_endpoint_url when not set (production, where they match).
+    """
+    endpoint = settings.spaces_presign_endpoint_url or settings.spaces_endpoint_url
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        region_name=settings.spaces_region,
+        aws_access_key_id=settings.spaces_key,
+        aws_secret_access_key=settings.spaces_secret,
+        config=Config(signature_version="s3v4"),
+    )
+
+
 def ensure_bucket() -> None:
     client = _client()
     try:
@@ -51,7 +69,7 @@ def download_bytes(key: str) -> bytes:
 
 
 def presigned_url(key: str, expires_in: int = 3600) -> str:
-    client = _client()
+    client = _presign_client()
     return client.generate_presigned_url(
         "get_object",
         Params={"Bucket": settings.spaces_bucket, "Key": key},
