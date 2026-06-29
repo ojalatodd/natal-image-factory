@@ -3,7 +3,7 @@ import { CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles } from "lucid
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { api, getDownloadUrl, listSegments, swapAsset, type Segment } from "../api";
+import { api, getDownloadUrl, listSegments, listVisualStyles, swapAsset, type Segment, type VisualStylePreset } from "../api";
 
 interface ProgressEvent {
   stage: string;
@@ -19,7 +19,7 @@ const MEDIA_MIX = [
   { value: "ai_judgement", label: "AI Judgement" },
 ];
 
-const STYLES = ["classical_antiquity", "medieval", "renaissance", "modern", "ai_judgement"];
+const DEFAULT_STYLE = "ai_judgement";
 
 function formatTimestamp(s: number): string {
   const total = Math.floor(s);
@@ -40,6 +40,11 @@ export default function ProjectView() {
   const { data: project, refetch } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => (await api.get(`/projects/${id}`)).data,
+  });
+
+  const { data: styles = [] } = useQuery({
+    queryKey: ["visual-styles"],
+    queryFn: listVisualStyles,
   });
 
   const { data: segments = [], refetch: refetchSegs } = useQuery({
@@ -132,16 +137,27 @@ export default function ProjectView() {
           ))}
         </select>
 
-        <label className="mb-1 block text-sm text-slate-400">Visual style</label>
-        <select
-          className="mb-4 w-full rounded bg-ink px-3 py-2 text-white"
-          value={project.visual_style}
-          onChange={(e) => updateSetting({ visual_style: e.target.value })}
-        >
-          {STYLES.map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-          ))}
-        </select>
+        <label className="mb-2 block text-sm text-slate-400">Visual style presets</label>
+        <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+          {(styles.length
+            ? styles
+            : ([{ value: DEFAULT_STYLE, label: "AI Selects Best", summary: "Let the pipeline decide", prompt: "" }] satisfies VisualStylePreset[]))
+            .map((style) => {
+            const isSelected = project.visual_style === style.value;
+            return (
+              <button
+                key={style.value}
+                type="button"
+                onClick={() => updateSetting({ visual_style: style.value })}
+                className={`rounded-lg border px-3 py-2 text-left transition ${isSelected ? "border-accent bg-accent/10" : "border-slate-700 hover:border-accent/50"}`}
+              >
+                <p className="text-sm font-semibold text-white">{style.label}</p>
+                <p className="text-xs text-slate-400">{style.summary}</p>
+                {style.prompt && <p className="mt-1 text-[11px] text-slate-500">Prompt hint: {style.prompt}</p>}
+              </button>
+            );
+          })}
+        </div>
 
         <label className="mb-2 flex items-center gap-2 text-sm">
           <input type="checkbox" checked={project.ai_images_enabled} onChange={(e) => updateSetting({ ai_images_enabled: e.target.checked })} />
