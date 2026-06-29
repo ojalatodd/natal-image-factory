@@ -64,6 +64,8 @@ class ProjectOut(BaseModel):
     ai_images_enabled: bool
     ai_video_motion: bool
     audio_duration_s: float | None
+    source_audio_key: str | None
+    source_text_key: str | None
     created_at: datetime
     updated_at: datetime
 
