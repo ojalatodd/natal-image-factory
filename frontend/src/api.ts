@@ -138,3 +138,27 @@ export async function listVisualStyles(): Promise<VisualStylePreset[]> {
   const { data } = await api.get("/visual-styles");
   return data;
 }
+
+export async function deleteProject(id: number): Promise<void> {
+  await api.delete(`/projects/${id}`);
+}
+
+export interface CostEstimate {
+  whisper_usd: number;
+  segmentation_usd: number;
+  ranking_usd: number;
+  dalle_fallback_usd: number;
+  total_usd: number;
+  estimated_segments: number;
+  audio_minutes: number;
+}
+
+export async function getCostEstimate(projectId: number): Promise<CostEstimate> {
+  const { data } = await api.get(`/projects/${projectId}/cost-estimate`);
+  return data;
+}
+
+export async function getQueueStatus(): Promise<Project[]> {
+  const { data } = await api.get("/projects/queue/status");
+  return data;
+}

@@ -144,3 +144,14 @@ class AiConfigOut(AiConfigIn):
 
 class DownloadOut(BaseModel):
     url: str
+
+
+# ---- Cost Estimate ----
+class CostEstimateOut(BaseModel):
+    whisper_usd: float
+    segmentation_usd: float
+    ranking_usd: float
+    dalle_fallback_usd: float
+    total_usd: float
+    estimated_segments: int
+    audio_minutes: float

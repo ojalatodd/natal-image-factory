@@ -61,3 +61,8 @@ def presigned_url(key: str, expires_in: int = 3600) -> str:
 
 def public_url(key: str) -> str:
     return f"{settings.spaces_public_url.rstrip('/')}/{key}"
+
+
+def delete_object(key: str) -> None:
+    client = _client()
+    client.delete_object(Bucket=settings.spaces_bucket, Key=key)
