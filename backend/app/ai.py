@@ -335,6 +335,8 @@ def segment_text(
     )
     if not parsed:
         duration = transcript.get("duration_s", 0.0)
+        if not duration or duration <= 0.0:
+            duration = target_segment_s
         return [
             {
                 "index": 1,
@@ -348,10 +350,18 @@ def segment_text(
         ]
     segments_raw = parsed.get("segments", [])
 
+    # When there's no audio, the AI may return zero-duration segments.
+    # Assign sequential default durations so Ken Burns and timestamps are meaningful.
+    audio_duration = transcript.get("duration_s", 0.0)
+    no_audio = not audio_duration or audio_duration <= 0.0
+
     segments: list[dict[str, Any]] = []
     for i, seg in enumerate(segments_raw):
         start = float(seg.get("start_s", 0.0))
         end = float(seg.get("end_s", start + target_segment_s))
+        if no_audio:
+            start = i * target_segment_s
+            end = start + target_segment_s
         segments.append(
             {
                 "index": i + 1,
@@ -365,18 +375,32 @@ def segment_text(
         )
 
     if not segments:
-        duration = transcript.get("duration_s", 0.0)
-        segments.append(
-            {
-                "index": 1,
-                "start_s": 0.0,
-                "end_s": duration,
-                "duration_s": duration,
-                "theme_label": "Full narration",
-                "summary": article_text[:500] if article_text else "",
-                "search_query": "historical illustration",
-            }
-        )
+        if no_audio:
+            # No audio and no AI segments — single segment with default duration
+            segments.append(
+                {
+                    "index": 1,
+                    "start_s": 0.0,
+                    "end_s": target_segment_s,
+                    "duration_s": target_segment_s,
+                    "theme_label": "Full narration",
+                    "summary": article_text[:500] if article_text else "",
+                    "search_query": "historical illustration",
+                }
+            )
+        else:
+            duration = transcript.get("duration_s", 0.0)
+            segments.append(
+                {
+                    "index": 1,
+                    "start_s": 0.0,
+                    "end_s": duration,
+                    "duration_s": duration,
+                    "theme_label": "Full narration",
+                    "summary": article_text[:500] if article_text else "",
+                    "search_query": "historical illustration",
+                }
+            )
 
     return segments
 

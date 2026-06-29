@@ -113,8 +113,9 @@ export default function ProjectView() {
 
   if (!project) return <div className="p-8 text-slate-400">Loading…</div>;
 
-  const canGenerate = project.source_audio_key && project.source_text_key;
+  const canGenerate = project.source_audio_key || project.source_text_key;
   const showSegments = project.status === "review" || project.status === "complete";
+  const textOnlyMode = !project.source_audio_key && project.source_text_key;
 
   return (
     <div className="mx-auto max-w-4xl p-8">
@@ -196,6 +197,11 @@ export default function ProjectView() {
       </section>
 
       {/* Generate button + cost estimate */}
+      {textOnlyMode && canGenerate && project.status !== "processing" && (
+        <div className="mb-3 rounded-lg bg-amber-900/30 border border-amber-700/50 p-3 text-sm text-amber-300">
+          <strong>Text-only mode:</strong> No voiceover uploaded. Segments will use a default 30s duration each. Upload a voiceover for accurate timestamps and Ken Burns timing.
+        </div>
+      )}
       <button
         onClick={generate}
         disabled={!canGenerate || project.status === "processing"}
