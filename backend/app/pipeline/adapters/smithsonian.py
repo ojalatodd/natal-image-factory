@@ -12,7 +12,7 @@ import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import settings
-from app.pipeline.adapters.base import CandidateAsset, register
+from app.pipeline.adapters.base import HEADERS, CandidateAsset, register
 
 logger = logging.getLogger("natal")
 
@@ -43,7 +43,7 @@ class SmithsonianAdapter:
             "api_key": api_key,
         }
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, headers=HEADERS) as client:
             resp = await client.get(f"{SMITHSONIAN_API}/content/search", params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -93,7 +93,7 @@ class SmithsonianAdapter:
         url = asset.download_url or asset.thumbnail_url
         if not url:
             raise ValueError(f"No download URL for asset from {self.name}")
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True, headers=HEADERS) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             dest.parent.mkdir(parents=True, exist_ok=True)

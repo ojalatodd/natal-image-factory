@@ -12,6 +12,15 @@ from typing import Literal, Protocol, runtime_checkable
 
 MediaTypeStr = Literal["still", "video"]
 
+# Descriptive User-Agent required by several public APIs (notably Wikimedia
+# Commons, which returns 403 without one). See:
+# https://meta.wikimedia.org/wiki/User-Agent_policy
+USER_AGENT = (
+    "NatalImageFactory/1.0 (https://github.com/ojalatodd/natal-image-factory; "
+    "public-domain media aggregator)"
+)
+HEADERS = {"User-Agent": USER_AGENT}
+
 
 @dataclass
 class CandidateAsset:
