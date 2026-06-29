@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # Spaces / S3
     spaces_endpoint_url: str = "http://minio:9000"
+    spaces_presign_endpoint_url: str | None = None  # if None, falls back to spaces_endpoint_url
     spaces_region: str = "us-east-1"
     spaces_bucket: str = "natal-media"
     spaces_key: str = "minioadmin"
