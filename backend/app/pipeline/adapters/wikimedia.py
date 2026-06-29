@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.pipeline.adapters.base import CandidateAsset, register
+from app.pipeline.adapters.base import HEADERS, CandidateAsset, register
 
 logger = logging.getLogger("natal")
 
@@ -45,7 +45,7 @@ class WikimediaCommonsAdapter:
             "srlimit": str(limit),
         }
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, headers=HEADERS) as client:
             resp = await client.get(COMMONS_API, params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -85,7 +85,7 @@ class WikimediaCommonsAdapter:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
     async def fetch(self, asset: CandidateAsset, dest: Path) -> Path:
         url = asset.download_url or asset.thumbnail_url
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True, headers=HEADERS) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             dest.parent.mkdir(parents=True, exist_ok=True)
