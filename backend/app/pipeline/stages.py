@@ -48,6 +48,7 @@ def transcribe(db: Session, project: Project) -> dict:
     progress.publish(project.id, "transcribe", 10, "Transcribing voiceover…")
 
     if not project.source_audio_key:
+        progress.publish(project.id, "transcribe", 25, "No voiceover uploaded — skipping transcription")
         return {"duration_s": 0.0, "words": []}
 
     audio_bytes = storage.download_bytes(project.source_audio_key)
