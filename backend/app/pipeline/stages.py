@@ -39,7 +39,7 @@ from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithso
 from app.pipeline.adapters import wikimedia_video  # noqa: F401
 from app.pipeline.adapters import internet_archive_video  # noqa: F401
 from app.pipeline.adapters import pexels  # noqa: F401
-from app.pipeline.adapters.base import CandidateAsset, get_adapters
+from app.pipeline.adapters.base import CandidateAsset, HEADERS, get_adapters
 from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
 from app.pipeline.media import (
     extract_thumbnail,
@@ -487,9 +487,12 @@ def _process_video(db: Session, project: Project, seg: Segment, asset: Asset) ->
             break
 
     # Download the source video to a temp file
-    raw_path = Path(tempfile.mktemp(suffix="_src.mp4"))
-    norm_path = Path(tempfile.mktemp(suffix="_norm.mp4"))
-    thumb_path = Path(tempfile.mktemp(suffix="_thumb.jpg"))
+    with tempfile.NamedTemporaryFile(suffix="_src.mp4", delete=False) as tmp:
+        raw_path = Path(tmp.name)
+    with tempfile.NamedTemporaryFile(suffix="_norm.mp4", delete=False) as tmp:
+        norm_path = Path(tmp.name)
+    with tempfile.NamedTemporaryFile(suffix="_thumb.jpg", delete=False) as tmp:
+        thumb_path = Path(tmp.name)
 
     try:
         if adapter and asset.download_url:
@@ -505,7 +508,7 @@ def _process_video(db: Session, project: Project, seg: Segment, asset: Asset) ->
             )
             asyncio.run(adapter.fetch(candidate, raw_path))
         else:
-            resp = httpx.get(asset.download_url or asset.source_url or "", timeout=120, follow_redirects=True)
+            resp = httpx.get(asset.download_url or asset.source_url or "", timeout=120, follow_redirects=True, headers=HEADERS)
             resp.raise_for_status()
             raw_path.write_bytes(resp.content)
 
@@ -550,6 +553,17 @@ def _process_video(db: Session, project: Project, seg: Segment, asset: Asset) ->
         asset.spaces_key = media_key
         asset.thumbnail_key = thumb_key
         asset.duration_s = trim_duration
+        # Probe dimensions from the normalized clip
+        if ffmpeg_available():
+            try:
+                import ffmpeg
+                probe = ffmpeg.probe(str(norm_path))
+                v_stream = next((s for s in probe.get("streams", []) if s.get("codec_type") == "video"), None)
+                if v_stream:
+                    asset.width = int(v_stream.get("width", 0)) or None
+                    asset.height = int(v_stream.get("height", 0)) or None
+            except Exception as exc:
+                logger.warning("Could not probe video dimensions for asset %d: %s", asset.id, exc)
         asset.status = AssetStatus.processed
 
         logger.info(

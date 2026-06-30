@@ -290,6 +290,19 @@ def transcribe_audio(audio_bytes: bytes, filename: str = "audio.mp3") -> dict[st
     return {"duration_s": duration, "words": words}
 
 
+def _fallback_segment(article_text: str, duration: float) -> dict[str, Any]:
+    """Build a single fallback segment spanning the full duration."""
+    return {
+        "index": 1,
+        "start_s": 0.0,
+        "end_s": duration,
+        "duration_s": duration,
+        "theme_label": "Full narration",
+        "summary": article_text[:500] if article_text else "",
+        "search_query": "historical illustration",
+    }
+
+
 def segment_text(
     article_text: str,
     transcript: dict[str, Any],
@@ -337,17 +350,7 @@ def segment_text(
         duration = transcript.get("duration_s", 0.0)
         if not duration or duration <= 0.0:
             duration = target_segment_s
-        return [
-            {
-                "index": 1,
-                "start_s": 0.0,
-                "end_s": duration,
-                "duration_s": duration,
-                "theme_label": "Full narration",
-                "summary": article_text[:500] if article_text else "",
-                "search_query": "historical illustration",
-            }
-        ]
+        return [_fallback_segment(article_text, duration)]
     segments_raw = parsed.get("segments", [])
 
     # When there's no audio, the AI may return zero-duration segments.
@@ -376,31 +379,10 @@ def segment_text(
 
     if not segments:
         if no_audio:
-            # No audio and no AI segments — single segment with default duration
-            segments.append(
-                {
-                    "index": 1,
-                    "start_s": 0.0,
-                    "end_s": target_segment_s,
-                    "duration_s": target_segment_s,
-                    "theme_label": "Full narration",
-                    "summary": article_text[:500] if article_text else "",
-                    "search_query": "historical illustration",
-                }
-            )
+            segments.append(_fallback_segment(article_text, target_segment_s))
         else:
             duration = transcript.get("duration_s", 0.0)
-            segments.append(
-                {
-                    "index": 1,
-                    "start_s": 0.0,
-                    "end_s": duration,
-                    "duration_s": duration,
-                    "theme_label": "Full narration",
-                    "summary": article_text[:500] if article_text else "",
-                    "search_query": "historical illustration",
-                }
-            )
+            segments.append(_fallback_segment(article_text, duration))
 
     return segments
 
