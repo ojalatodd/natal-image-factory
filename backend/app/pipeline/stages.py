@@ -312,7 +312,80 @@ def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
 
         db.commit()
 
+    # Balanced mix enforcement: ensure a reasonable ratio of video segments
+    if project.media_mix == MediaMix.balanced:
+        _enforce_balanced_mix(db, segments)
+
     progress.publish(project.id, "rank", 75, "Ranking complete")
+
+
+def _enforce_balanced_mix(db: Session, segments: list[Segment]) -> None:
+    """Ensure a reasonable ratio of video segments in balanced mode.
+
+    After ranking, if fewer than 30% of segments chose video, swap in the
+    best video candidate for segments where the video score is close to the
+    chosen still's score (within a 0.15 gap). This prevents balanced mode
+    from silently becoming all-stills when stills score slightly higher.
+    """
+    # Only consider segments that have a chosen asset
+    ranked = [s for s in segments if s.chosen_asset_id]
+    if not ranked:
+        return
+
+    video_count = sum(
+        1 for s in ranked if s.chosen_media_type == MediaType.video
+    )
+    target_min = max(1, int(len(ranked) * 0.3))
+
+    if video_count >= target_min:
+        return  # Already enough video
+
+    swaps_needed = target_min - video_count
+
+    # Find segments currently choosing a still that also have video candidates
+    swap_candidates: list[tuple[float, Segment, Asset]] = []
+    for seg in ranked:
+        if seg.chosen_media_type != MediaType.still:
+            continue
+
+        chosen_asset = db.get(Asset, seg.chosen_asset_id)
+        if not chosen_asset:
+            continue
+
+        # Find the best video candidate for this segment
+        all_assets = db.query(Asset).filter(Asset.segment_id == seg.id).all()
+        video_assets = [
+            a for a in all_assets
+            if a.media_type == MediaType.video and a.relevance_score is not None
+        ]
+        if not video_assets:
+            continue
+
+        best_video = max(video_assets, key=lambda a: a.relevance_score or 0.0)
+        score_gap = (chosen_asset.relevance_score or 0.0) - (best_video.relevance_score or 0.0)
+
+        # Only swap if the score gap is small (video is nearly as good)
+        if score_gap <= 0.15:
+            swap_candidates.append((score_gap, seg, best_video))
+
+    # Sort by smallest score gap first — swap the ones where video is closest
+    swap_candidates.sort(key=lambda x: x[0])
+
+    for score_gap, seg, best_video in swap_candidates[:swaps_needed]:
+        # Un-choose the current still
+        old_asset = db.get(Asset, seg.chosen_asset_id)
+        if old_asset:
+            old_asset.is_chosen = False
+
+        best_video.is_chosen = True
+        seg.chosen_asset_id = best_video.id
+        seg.chosen_media_type = MediaType.video
+        logger.info(
+            "Balanced mix: swapped segment %d to video (score gap %.3f)",
+            seg.index, score_gap,
+        )
+
+    db.commit()
 
 
 # ---- Stage 5: Acquire, trim & normalize ----
