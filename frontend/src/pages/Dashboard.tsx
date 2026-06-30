@@ -1,23 +1,38 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrainCircuit, Film, Image as ImageIcon, Plus, Settings, Trash2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { BrainCircuit, Film, Image as ImageIcon, Plus, RefreshCw, Settings, Trash2, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { createProject, deleteProject, getQueueStatus, listProjects } from "../api";
+import { createProject, deleteProject, getQueueStatus, listProjects, suggestProjectName } from "../api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [name, setName] = useState("");
+  const [nameSuggesting, setNameSuggesting] = useState(false);
 
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const { data: queue = [] } = useQuery({ queryKey: ["queue"], queryFn: getQueueStatus, refetchInterval: 5000 });
 
+  async function refreshSuggestedName() {
+    setNameSuggesting(true);
+    try {
+      const suggested = await suggestProjectName();
+      setName(suggested);
+    } catch {
+      // ignore — user can type manually
+    } finally {
+      setNameSuggesting(false);
+    }
+  }
+
+  useEffect(() => { refreshSuggestedName(); }, []);
+
   const create = useMutation({
-    mutationFn: () => createProject(name || "Untitled Project"),
+    mutationFn: () => createProject(name.trim()),
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
-      setName("");
+      refreshSuggestedName();
       navigate(`/projects/${p.id}`);
     },
   });
@@ -67,19 +82,34 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="mb-8 flex gap-2">
-        <input
-          className="flex-1 rounded-lg bg-surface px-3 py-2 text-white outline-none ring-1 ring-card focus:ring-accent"
-          placeholder="New project name (e.g. Episode 47 — The Fall of Rome)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button
-          onClick={() => create.mutate()}
-          className="flex items-center gap-1 rounded-lg bg-accent px-4 py-2 font-semibold text-white hover:bg-blue-600"
-        >
-          <Plus size={18} /> Create
-        </button>
+      <div className="mb-8">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              className="w-full rounded-lg bg-surface px-3 py-2 pr-9 text-white outline-none ring-1 ring-card focus:ring-accent"
+              placeholder="Project name…"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && create.mutate()}
+            />
+            <button
+              onClick={refreshSuggestedName}
+              disabled={nameSuggesting}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white disabled:opacity-40"
+              title="Suggest a new name"
+            >
+              <RefreshCw size={14} className={nameSuggesting ? "animate-spin" : ""} />
+            </button>
+          </div>
+          <button
+            onClick={() => create.mutate()}
+            disabled={!name.trim()}
+            className="flex items-center gap-1 rounded-lg bg-accent px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-40"
+          >
+            <Plus size={18} /> Create
+          </button>
+        </div>
+        <p className="mt-1 text-[11px] text-slate-500">AI-suggested name — edit freely or click ↻ for another.</p>
       </div>
 
       <div className="grid gap-3">

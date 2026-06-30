@@ -145,6 +145,11 @@ export async function listVisualStyles(): Promise<VisualStylePreset[]> {
   return data;
 }
 
+export async function suggestProjectName(): Promise<string> {
+  const { data } = await api.get("/projects/suggest-name");
+  return data.name as string;
+}
+
 export async function deleteProject(id: number): Promise<void> {
   await api.delete(`/projects/${id}`);
 }

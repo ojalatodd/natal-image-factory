@@ -539,3 +539,36 @@ def generate_image(prompt: str, style: str = "", *, ai_config: AiModelConfig | A
     except Exception as exc:
         logger.warning("DALL-E image generation failed: %s", exc)
         return None
+
+
+def suggest_project_name(*, ai_config: AiModelConfig | Any | None = None) -> str:
+    """Generate a short, evocative project name using the configured AI provider.
+
+    Returns a concise title like "The Fall of Constantinople — Episode 12" or
+    "Voyager: Into the Outer Solar System". Falls back to a timestamp-based name
+    if no AI provider is configured or the call fails.
+    """
+    from datetime import datetime
+
+    resolved = _resolve_config(ai_config)
+
+    system_prompt = (
+        "You generate short, evocative project names for documentary-style video projects. "
+        "Names should be 3–8 words, historically or thematically resonant, and sound like "
+        "a documentary episode title. Return JSON only."
+    )
+    user_content = (
+        "Generate one project name for a new video documentary project. "
+        "Make it sound compelling and professional. "
+        'Return JSON: {"name": "..."}'
+    )
+
+    try:
+        parsed = _chat_json(resolved, system_prompt, user_content, temperature=0.9, max_tokens=60)
+        name = (parsed or {}).get("name", "").strip()
+        if name:
+            return name
+    except Exception as exc:
+        logger.debug("suggest_project_name failed: %s", exc)
+
+    return f"Project {datetime.now().strftime('%b %d %H:%M')}"

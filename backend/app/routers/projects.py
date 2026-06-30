@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import suggest_project_name
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Project, ProjectStatus, User
@@ -62,6 +63,12 @@ def _owned(db: Session, user: User, project_id: int) -> Project:
     if not project or project.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+@router.get("/suggest-name")
+def get_suggested_name(user: User = Depends(get_current_user)) -> dict:
+    """Return an AI-generated project name suggestion."""
+    return {"name": suggest_project_name()}
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
