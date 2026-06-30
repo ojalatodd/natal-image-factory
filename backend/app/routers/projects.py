@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.ai import suggest_project_name
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Project, ProjectStatus, User
+from app.models import Job, Project, ProjectStatus, User
 from app.schemas import CostEstimateOut, DownloadOut, ProjectCreate, ProjectOut, ProjectSettings
 from app.storage import delete_object, presigned_url
 from app.tasks import run_pipeline
@@ -127,6 +127,21 @@ def queue_status(db: Session = Depends(get_db), user: User = Depends(get_current
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return _owned(db, user, project_id)
+
+
+@router.get("/{project_id}/progress/latest")
+def get_latest_progress(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    """Return the last known pipeline progress for a project (for restoring state after refresh)."""
+    _owned(db, user, project_id)
+    job = db.query(Job).filter(Job.project_id == project_id).order_by(Job.id.desc()).first()
+    if not job:
+        return {"stage": None, "progress_pct": 0, "message": None, "error": None}
+    return {
+        "stage": job.stage,
+        "progress_pct": job.progress_pct,
+        "message": job.message,
+        "error": job.error,
+    }
 
 
 @router.patch("/{project_id}/settings", response_model=ProjectOut)

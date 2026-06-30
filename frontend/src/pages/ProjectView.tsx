@@ -59,7 +59,13 @@ export default function ProjectView() {
   });
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !project) return;
+    // Restore last known progress immediately on mount if already processing
+    if (project.status === "processing") {
+      api.get(`/projects/${id}/progress/latest`).then((r) => {
+        if (r.data.stage) setProgress(r.data);
+      }).catch(() => {});
+    }
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${proto}://${window.location.host}/api/projects/${id}/progress`);
     ws.onmessage = (e) => {
@@ -72,7 +78,7 @@ export default function ProjectView() {
     };
     wsRef.current = ws;
     return () => ws.close();
-  }, [id, refetch, refetchSegs]);
+  }, [id, project?.status, refetch, refetchSegs]);
 
   useEffect(() => {
     if (project && (project.status === "review" || project.status === "complete")) {
