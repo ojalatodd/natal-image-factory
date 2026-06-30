@@ -496,6 +496,38 @@ def rank_candidates(
     return scored
 
 
+def decide_media_type(
+    segment_summary: str,
+    search_query: str,
+    *,
+    ai_config: AiModelConfig | Any | None = None,
+) -> str:
+    """Use AI to decide whether a segment is better served by still or video.
+
+    Returns "still" or "video". Falls back to "still" when AI is unavailable.
+    """
+    resolved = _resolve_config(ai_config)
+
+    system_prompt = (
+        "You decide whether a video segment about the given topic is best "
+        "served by a still image or a video clip. "
+        "Choose 'video' for segments involving action, process, movement, "
+        "dynamic events, or temporal change. "
+        "Choose 'still' for segments about static subjects, portraits, "
+        "documents, maps, or historical artifacts. "
+        "Return JSON only: {\"media_type\": \"still\"} or {\"media_type\": \"video\"}"
+    )
+    user_content = (
+        f"Segment summary: {segment_summary}\n"
+        f"Search query: {search_query}\n\n"
+        "Should this segment use a still image or a video clip?"
+    )
+    parsed = _chat_json(resolved, system_prompt, user_content, temperature=0.1, max_tokens=50)
+    if parsed and parsed.get("media_type") in ("still", "video"):
+        return parsed["media_type"]
+    return "still"
+
+
 def generate_image(prompt: str, style: str = "", *, ai_config: AiModelConfig | Any | None = None) -> bytes | None:
     """Generate an image (currently OpenAI DALL-E 3) and return PNG bytes.
 

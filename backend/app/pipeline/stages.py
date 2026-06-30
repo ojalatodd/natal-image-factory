@@ -21,7 +21,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app import progress, storage
-from app.ai import generate_image, rank_candidates, segment_text, transcribe_audio
+from app.ai import decide_media_type, generate_image, rank_candidates, segment_text, transcribe_audio
 from app.models import (
     AiSettings,
     Asset,
@@ -285,6 +285,19 @@ def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
         if not assets:
             seg.chosen_media_type = MediaType.still
             continue
+
+        # For ai_judgement mode, ask AI whether this segment should be still or video
+        if project.media_mix == MediaMix.ai_judgement:
+            preferred = decide_media_type(
+                seg.summary or "",
+                seg.search_query or "",
+                ai_config=ai_config,
+            )
+            preferred_type = MediaType.still if preferred == "still" else MediaType.video
+            # Filter to preferred type; fall back to all if no candidates of that type
+            typed_assets = [a for a in assets if a.media_type == preferred_type]
+            if typed_assets:
+                assets = typed_assets
 
         # Build candidate list for Vision API
         candidates_with_urls = [

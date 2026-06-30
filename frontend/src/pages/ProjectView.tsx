@@ -5,6 +5,23 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { api, cancelProject, deleteProject, getCostEstimate, getDownloadUrl, getVideoUrl, listSegments, listVisualStyles, renameProject, suggestProjectName, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
 
+function VideoPreview({ segmentId }: { segmentId: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    getVideoUrl(segmentId)
+      .then((u) => { if (active) { setUrl(u); setLoading(false); } })
+      .catch(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [segmentId]);
+
+  if (loading) return <div className="flex h-32 items-center justify-center text-sm text-slate-500">Loading preview…</div>;
+  if (!url) return null;
+  return <video src={url} controls className="max-h-64 w-full" />;
+}
+
 interface ProgressEvent {
   stage: string;
   progress_pct: number;
@@ -373,26 +390,29 @@ export default function ProjectView() {
                 {seg.summary && <p className="mb-3 text-sm text-slate-400">{seg.summary}</p>}
 
                 {/* Chosen asset preview */}
-                {seg.chosen_asset_id && (
-                  <div className="mb-2">
-                    <p className="mb-1 text-xs text-green-400">✓ Chosen: {seg.assets.find(a => a.id === seg.chosen_asset_id)?.source_name}</p>
-                    {seg.assets.find(a => a.id === seg.chosen_asset_id)?.video_key && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            const url = await getVideoUrl(seg.id);
-                            window.open(url, "_blank");
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        className="flex items-center gap-1 text-xs text-accent hover:text-blue-400"
-                      >
-                        ▶ Preview Ken Burns motion
-                      </button>
-                    )}
-                  </div>
-                )}
+                {seg.chosen_asset_id && (() => {
+                  const chosen = seg.assets.find(a => a.id === seg.chosen_asset_id);
+                  if (!chosen) return null;
+                  const isVideoAsset = chosen.media_type === "video";
+                  const hasKenBurns = !!chosen.video_key;
+                  const hasVideo = isVideoAsset || hasKenBurns;
+                  return (
+                    <div className="mb-3">
+                      <p className="mb-1 text-xs text-green-400">
+                        ✓ Chosen: {chosen.source_name}
+                        <span className="ml-2 text-slate-500">
+                          {isVideoAsset ? "🎬 Video" : "🖼 Still"}
+                          {chosen.duration_s ? ` · ${chosen.duration_s.toFixed(1)}s` : ""}
+                        </span>
+                      </p>
+                      {hasVideo && (
+                        <div className="mb-2 overflow-hidden rounded-lg bg-black">
+                          <VideoPreview segmentId={seg.id} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Asset thumbnails */}
                 {seg.assets.length > 0 && (
@@ -416,6 +436,9 @@ export default function ProjectView() {
                           <div className="absolute bottom-0 right-0 rounded-tl bg-accent p-0.5">
                             <CheckCircle size={14} className="text-white" />
                           </div>
+                        )}
+                        {asset.media_type === "video" && (
+                          <div className="absolute top-0 left-0 rounded-br bg-black/70 px-1 py-0.5 text-[9px] text-accent">▶</div>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[10px] text-slate-300">
                           {asset.source_name}

@@ -31,19 +31,25 @@
 - Project re-generation support — DONE
 - Additional source adapters: The Met, Smithsonian Open Access — DONE
 
-## Phase 3 — Video Pipeline
+## Phase 3 — Video Pipeline (IMPLEMENTED)
 
-- Video source adapters (Pexels, Internet Archive video, Wikimedia video)
-- `probe_duration`, `trim_and_normalize` via ffprobe/ffmpeg
-- Video-specific ranking (motion relevance, content match)
-- Media mix enforcement (stills/video/balanced/ai_judgement)
-- Video transcoding and format normalization
+- Video source adapters: Pexels, Internet Archive Video, Wikimedia Commons Video — DONE
+- `probe_duration`, `trim_and_normalize` via ffprobe/ffmpeg — DONE
+- Video-specific ranking: Vision API gives boost to video for action/movement segments — DONE
+- Media mix enforcement: stills/video/balanced/ai_judgement with `_enforce_balanced_mix` — DONE
+- AI judgement mode: `decide_media_type` asks AI per-segment whether still or video is better — DONE
+- Video transcoding and format normalization (H.264 1080p, faststart) — DONE
+- Ken Burns motion on stills (ffmpeg zoompan) — DONE
+- Video thumbnail extraction — DONE
+- Inline video player in segment review UI — DONE
+- Video assets in ZIP packaging with manifest entries — DONE
 
 ## Phase 4 — Production Deployment
 
 - DigitalOcean Droplet provisioning
 - DO Spaces configuration (replace MinIO)
 - Caddy auto-TLS with real domain
-- Environment hardening (secrets, CORS, rate limiting)
+- Environment hardening: rate limiting — DONE, CORS — DONE, httpOnly cookies — DONE
+- Admin dashboard with user management — DONE
 - SQLite → PostgreSQL migration (if needed)
 - Monitoring and logging

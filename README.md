@@ -77,4 +77,4 @@ Documentation/              design + planning docs
 
 ## Status
 
-Phase 0 (scaffolding) — in progress. Pipeline stages are stubbed and wired; AI/adapter logic lands in Phases 1–4 per the implementation plan.
+Phases 0–3 complete. Still image pipeline (Phase 1), polish & UX (Phase 2), and video pipeline (Phase 3) all implemented. Phase 4 (production deployment to DigitalOcean) remains.

@@ -53,16 +53,25 @@ def get_video_url(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Return a presigned URL for the Ken Burns video clip of the chosen asset."""
+    """Return a presigned URL for the video clip of the chosen asset.
+
+    Works for both Ken Burns motion clips (video_key) and actual video assets
+    (spaces_key when media_type is video).
+    """
     seg = db.get(Segment, segment_id)
     if not seg or seg.project.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Segment not found")
 
     asset = db.get(Asset, seg.chosen_asset_id) if seg.chosen_asset_id else None
-    if not asset or not asset.video_key:
+    if not asset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No chosen asset")
+
+    # Prefer Ken Burns video_key, then fall back to spaces_key for video assets
+    key = asset.video_key or (asset.spaces_key if asset.media_type == "video" else None)
+    if not key:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No video clip for this segment")
 
-    return {"url": presigned_url(asset.video_key)}
+    return {"url": presigned_url(key)}
 
 
 @router.post("/segments/{segment_id}/retry", response_model=SegmentOut)
