@@ -274,7 +274,12 @@ def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
 
         # Build candidate list for Vision API
         candidates_with_urls = [
-            {"url": a.thumbnail_url or a.source_url or "", "title": a.attribution or ""}
+            {
+                "url": a.thumbnail_url or a.source_url or "",
+                "title": a.attribution or "",
+                "media_type": a.media_type.value if a.media_type else "still",
+                "duration_s": a.duration_s,
+            }
             for a in assets
             if a.thumbnail_url or a.source_url
         ]
