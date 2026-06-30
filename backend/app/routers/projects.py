@@ -207,4 +207,6 @@ def download(project_id: int, db: Session = Depends(get_db), user: User = Depend
     project = _owned(db, user, project_id)
     if project.status not in (ProjectStatus.complete, ProjectStatus.review):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Package not ready")
-    return DownloadOut(url=presigned_url(f"output/project_{project.id}.zip"))
+    import re
+    safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', project.name).strip().rstrip(".") or f"project_{project.id}"
+    return DownloadOut(url=presigned_url(f"output/project_{project.id}.zip", filename=f"{safe_name}.zip"))

@@ -70,11 +70,14 @@ def download_bytes(key: str) -> bytes:
     return obj["Body"].read()
 
 
-def presigned_url(key: str, expires_in: int = 3600) -> str:
+def presigned_url(key: str, expires_in: int = 3600, *, filename: str | None = None) -> str:
     client = _presign_client()
+    params: dict = {"Bucket": settings.spaces_bucket, "Key": key}
+    if filename:
+        params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
     return client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": settings.spaces_bucket, "Key": key},
+        Params=params,
         ExpiresIn=expires_in,
     )
 
