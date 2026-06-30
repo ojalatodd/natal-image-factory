@@ -67,6 +67,51 @@ export async function checkAuth(): Promise<boolean> {
   }
 }
 
+export interface UserInfo {
+  id: number;
+  email: string;
+  role: "admin" | "user";
+}
+
+export async function getMe(): Promise<UserInfo> {
+  const { data } = await api.get("/auth/me");
+  return data;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api.patch("/auth/password", { current_password: currentPassword, new_password: newPassword });
+}
+
+// ---- Admin ----
+export interface AdminUser {
+  id: number;
+  email: string;
+  role: "admin" | "user";
+  created_at: string;
+}
+
+export async function adminListUsers(): Promise<AdminUser[]> {
+  const { data } = await api.get("/admin/users");
+  return data;
+}
+
+export async function adminCreateUser(email: string, password: string, role: "admin" | "user"): Promise<AdminUser> {
+  const { data } = await api.post("/admin/users", { email, password, role });
+  return data;
+}
+
+export async function adminDeleteUser(userId: number): Promise<void> {
+  await api.delete(`/admin/users/${userId}`);
+}
+
+export async function adminResetPassword(userId: number, newPassword: string): Promise<void> {
+  await api.patch(`/admin/users/${userId}/password`, { new_password: newPassword });
+}
+
+export async function adminUpdateRole(userId: number, role: "admin" | "user"): Promise<void> {
+  await api.patch(`/admin/users/${userId}/role`, { role });
+}
+
 export async function listProjects(): Promise<Project[]> {
   const { data } = await api.get("/projects");
   return data;

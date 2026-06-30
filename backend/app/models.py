@@ -53,12 +53,18 @@ class AssetStatus(str, enum.Enum):
     failed = "failed"
 
 
+class UserRole(enum.Enum):
+    admin = "admin"
+    user = "user"
+
+
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.user)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     projects: Mapped[list[Project]] = relationship(back_populates="user", cascade="all, delete-orphan")

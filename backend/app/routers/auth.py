@@ -7,8 +7,8 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import User
-from app.schemas import LoginRequest, Token, UserOut
-from app.security import create_access_token, verify_password
+from app.schemas import ChangePasswordRequest, LoginRequest, Token, UserOut
+from app.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -45,3 +45,19 @@ def logout(response: Response):
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.patch("/password")
+@limiter.limit("3/minute")
+def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Allow a user to change their own password (requires current password)."""
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return {"ok": True}

@@ -6,17 +6,30 @@ import Login from "./pages/Login";
 import ProjectView from "./pages/ProjectView";
 import AiSettings from "./pages/AiSettings";
 import Sources from "./pages/Sources";
-import { checkAuth } from "./api";
+import Admin from "./pages/Admin";
+import AccountSettings from "./pages/AccountSettings";
+import { checkAuth, getMe, type UserInfo } from "./api";
 
-function RequireAuth({ children }: { children: JSX.Element }) {
+function RequireAuth({ children, adminOnly }: { children: JSX.Element; adminOnly?: boolean }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
 
   useEffect(() => {
-    checkAuth().then(setAuthed);
+    checkAuth().then(async (ok) => {
+      if (ok) {
+        const me = await getMe();
+        setUser(me);
+        setAuthed(true);
+      } else {
+        setAuthed(false);
+      }
+    });
   }, []);
 
   if (authed === null) return null; // loading
-  return authed ? children : <Navigate to="/login" replace />;
+  if (!authed) return <Navigate to="/login" replace />;
+  if (adminOnly && user?.role !== "admin") return <Navigate to="/" replace />;
+  return children;
 }
 
 export default function App() {
@@ -52,6 +65,22 @@ export default function App() {
         element={
           <RequireAuth>
             <AiSettings />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings/account"
+        element={
+          <RequireAuth>
+            <AccountSettings />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth adminOnly>
+            <Admin />
           </RequireAuth>
         }
       />

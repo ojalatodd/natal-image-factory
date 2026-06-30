@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
-from app.models import AiProvider, AssetStatus, MediaMix, MediaType, ProjectStatus
+from app.models import AiProvider, AssetStatus, MediaMix, MediaType, ProjectStatus, UserRole
 from app.visual_styles import is_valid_visual_style
 
 
@@ -23,6 +23,27 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     email: EmailStr
+    role: UserRole
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+# ---- Admin ----
+class AdminCreateUser(BaseModel):
+    email: EmailStr
+    password: str
+    role: UserRole = UserRole.user
+
+
+class AdminUpdateRole(BaseModel):
+    role: UserRole
+
+
+class AdminResetPassword(BaseModel):
+    new_password: str
 
 
 # ---- Visual styles ----

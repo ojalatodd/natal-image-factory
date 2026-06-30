@@ -12,9 +12,9 @@ from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.database import SessionLocal, init_db
-from app.models import User
+from app.models import User, UserRole
 from app.progress import channel
-from app.routers import ai_settings, auth, projects, segments, sources, uploads, visual_styles
+from app.routers import admin, ai_settings, auth, projects, segments, sources, uploads, visual_styles
 from app.security import hash_password
 from app.storage import ensure_bucket
 
@@ -36,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(projects.router)
 app.include_router(uploads.router)
 app.include_router(segments.router)
@@ -54,10 +55,20 @@ def _bootstrap_user() -> None:
                 User(
                     email=settings.bootstrap_user_email,
                     password_hash=hash_password(settings.bootstrap_user_password),
+                    role=UserRole.admin,
                 )
             )
             db.commit()
             logger.info("Bootstrapped initial user %s", settings.bootstrap_user_email)
+        else:
+            # Ensure at least the bootstrap user is admin (handles pre-#60 databases)
+            bootstrap = db.query(User).filter(User.email == settings.bootstrap_user_email).first()
+            if bootstrap and bootstrap.role != UserRole.admin:
+                admin_count = db.query(User).filter(User.role == UserRole.admin).count()
+                if admin_count == 0:
+                    bootstrap.role = UserRole.admin
+                    db.commit()
+                    logger.info("Promoted bootstrap user %s to admin", settings.bootstrap_user_email)
     finally:
         db.close()
 

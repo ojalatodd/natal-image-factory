@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrainCircuit, Copy, Film, Image as ImageIcon, Plus, Settings, Trash2, Loader2 } from "lucide-react";
+import { BrainCircuit, Copy, Film, Image as ImageIcon, Plus, Settings, ShieldCheck, Trash2, User as UserIcon, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { createProject, deleteProject, duplicateProject, getQueueStatus, listProjects, logout } from "../api";
+import { createProject, deleteProject, duplicateProject, getMe, getQueueStatus, listProjects, logout, type UserInfo } from "../api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const { data: queue = [] } = useQuery({ queryKey: ["queue"], queryFn: getQueueStatus, refetchInterval: 5000 });
+  const { data: me } = useQuery<UserInfo>({ queryKey: ["me"], queryFn: getMe });
 
   const create = useMutation({
     mutationFn: () => {
@@ -52,6 +53,20 @@ export default function Dashboard() {
           >
             <BrainCircuit size={16} /> AI Models
           </button>
+          <button
+            onClick={() => navigate("/settings/account")}
+            className="flex items-center gap-1 text-sm text-slate-400 hover:text-white"
+          >
+            <UserIcon size={16} /> Account
+          </button>
+          {me?.role === "admin" && (
+            <button
+              onClick={() => navigate("/admin")}
+              className="flex items-center gap-1 text-sm text-slate-400 hover:text-white"
+            >
+              <ShieldCheck size={16} /> Admin
+            </button>
+          )}
           <button
             onClick={() => {
               logout().then(() => navigate("/login"));
