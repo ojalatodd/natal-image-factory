@@ -112,10 +112,8 @@ def update_settings(
 @router.post("/{project_id}/generate", response_model=ProjectOut)
 def generate(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     project = _owned(db, user, project_id)
-    if not project.source_audio_key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload a voiceover first")
-    if not project.source_text_key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload an article text first")
+    if not project.source_audio_key and not project.source_text_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload an article text or voiceover first")
     if project.status == ProjectStatus.processing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pipeline already running")
     project.status = ProjectStatus.processing
