@@ -82,6 +82,9 @@ def register(adapter: SourceAdapter) -> SourceAdapter:
 
 
 def get_adapters(media_type: MediaTypeStr | None = None) -> list[SourceAdapter]:
+    # Ensure adapter modules are imported so they register themselves
+    if not _REGISTRY:
+        from app.pipeline import adapters as _adapters  # noqa: F401
     adapters = list(_REGISTRY.values())
     if media_type:
         adapters = [a for a in adapters if a.media_type == media_type]

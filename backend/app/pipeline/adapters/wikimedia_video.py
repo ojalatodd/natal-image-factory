@@ -38,13 +38,14 @@ class WikimediaCommonsVideoAdapter:
     ) -> list[CandidateAsset]:
         enhanced_query = f"{query} {style}".strip() if style and style != "ai_judgement" else query
 
+        # Use filetype filter to find only video files on Wikimedia Commons
         params = {
             "action": "query",
             "format": "json",
             "list": "search",
-            "srsearch": enhanced_query,
+            "srsearch": f"{enhanced_query} filetype:video",
             "srnamespace": 6,  # File namespace
-            "srlimit": str(limit * 3),  # over-fetch since we filter by extension
+            "srlimit": str(limit * 5),  # over-fetch since we filter by extension
         }
 
         async with http_client(timeout=30) as client:
