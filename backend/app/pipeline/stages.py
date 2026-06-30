@@ -38,6 +38,7 @@ from app.visual_styles import get_visual_style_prompt
 from app.pipeline.adapters import wikimedia, loc, internet_archive, met, smithsonian  # noqa: F401
 from app.pipeline.adapters import wikimedia_video  # noqa: F401
 from app.pipeline.adapters import internet_archive_video  # noqa: F401
+from app.pipeline.adapters import pexels  # noqa: F401
 from app.pipeline.adapters.base import CandidateAsset, get_adapters
 from app.pipeline.image_utils import image_to_bytes, thumbnail_to_bytes
 from app.pipeline.media import (
