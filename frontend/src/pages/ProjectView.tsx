@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -120,6 +120,12 @@ export default function ProjectView() {
 
   return (
     <div className="mx-auto max-w-4xl p-8">
+      <button
+        onClick={() => navigate("/")}
+        className="mb-4 flex items-center gap-1 text-sm text-slate-400 hover:text-white"
+      >
+        <ArrowLeft size={16} /> Back to Dashboard
+      </button>
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">{project.name}</h1>
         {project.status !== "processing" && (
