@@ -662,7 +662,6 @@ def package(db: Session, project: Project, segments: list[Segment]) -> str:
 
             # If Ken Burns video exists, include it alongside the still
             if asset.video_key:
-                file_index += 1
                 video_filename = f"{file_index:02d}_motion.mp4"
                 video_bytes = storage.download_bytes(asset.video_key)
                 zf.writestr(video_filename, video_bytes)
