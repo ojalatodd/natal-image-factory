@@ -65,16 +65,44 @@ def _owned(db: Session, user: User, project_id: int) -> Project:
     return project
 
 
-@router.get("/suggest-name")
-def get_suggested_name(user: User = Depends(get_current_user)) -> dict:
-    """Return an AI-generated project name suggestion."""
-    return {"name": suggest_project_name()}
+@router.post("/{project_id}/suggest-name")
+def post_suggested_name(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Return a project name derived from the project's uploaded article text."""
+    project = _owned(db, user, project_id)
+    article_text = ""
+    if project.source_text_key:
+        try:
+            from app.storage import download_bytes
+            raw = download_bytes(project.source_text_key)
+            article_text = raw.decode("utf-8", errors="replace")
+        except Exception:
+            pass
+    return {"name": suggest_project_name(article_text)}
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(body: ProjectCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     project = Project(user_id=user.id, name=body.name)
     db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.patch("/{project_id}/rename", response_model=ProjectOut)
+def rename_project(
+    project_id: int,
+    body: ProjectCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Rename a project."""
+    project = _owned(db, user, project_id)
+    project.name = body.name
     db.commit()
     db.refresh(project)
     return project

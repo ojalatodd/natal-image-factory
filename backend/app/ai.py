@@ -541,30 +541,33 @@ def generate_image(prompt: str, style: str = "", *, ai_config: AiModelConfig | A
         return None
 
 
-def suggest_project_name(*, ai_config: AiModelConfig | Any | None = None) -> str:
-    """Generate a short, evocative project name using the configured AI provider.
+def suggest_project_name(
+    article_text: str,
+    *,
+    ai_config: AiModelConfig | Any | None = None,
+) -> str:
+    """Suggest a project name derived from the article text content.
 
-    Returns a concise title like "The Fall of Constantinople — Episode 12" or
-    "Voyager: Into the Outer Solar System". Falls back to a timestamp-based name
-    if no AI provider is configured or the call fails.
+    Returns a concise, evocative title based on the article. Falls back to a
+    timestamp-based name if no AI provider is configured or the call fails.
     """
     from datetime import datetime
 
     resolved = _resolve_config(ai_config)
 
     system_prompt = (
-        "You generate short, evocative project names for documentary-style video projects. "
-        "Names should be 3–8 words, historically or thematically resonant, and sound like "
-        "a documentary episode title. Return JSON only."
+        "You generate short, evocative project names for documentary-style video projects "
+        "based on article content. Names should be 3–8 words and sound like a documentary "
+        "episode title. Return JSON only."
     )
     user_content = (
-        "Generate one project name for a new video documentary project. "
-        "Make it sound compelling and professional. "
+        f"Article excerpt:\n{article_text[:1000]}\n\n"
+        "Based on this content, suggest one project name. "
         'Return JSON: {"name": "..."}'
     )
 
     try:
-        parsed = _chat_json(resolved, system_prompt, user_content, temperature=0.9, max_tokens=60)
+        parsed = _chat_json(resolved, system_prompt, user_content, temperature=0.7, max_tokens=60)
         name = (parsed or {}).get("name", "").strip()
         if name:
             return name

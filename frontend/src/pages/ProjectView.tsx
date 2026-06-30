@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, T
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { api, deleteProject, getCostEstimate, getDownloadUrl, getVideoUrl, listSegments, listVisualStyles, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
+import { api, deleteProject, getCostEstimate, getDownloadUrl, getVideoUrl, listSegments, listVisualStyles, renameProject, suggestProjectName, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
 
 interface ProgressEvent {
   stage: string;
@@ -36,6 +36,9 @@ export default function ProjectView() {
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [costEst, setCostEst] = useState<CostEstimate | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSuggesting, setNameSuggesting] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const qc = useQueryClient();
 
@@ -127,7 +130,61 @@ export default function ProjectView() {
         <ArrowLeft size={16} /> Back to Dashboard
       </button>
       <div className="mb-1 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">{project.name}</h1>
+        {editingName ? (
+          <div className="flex flex-1 items-center gap-2 mr-4">
+            <input
+              autoFocus
+              className="flex-1 rounded-lg bg-surface px-3 py-1.5 text-xl font-bold text-white outline-none ring-1 ring-card focus:ring-accent"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  await renameProject(Number(id), nameInput.trim() || project.name);
+                  refetch();
+                  setEditingName(false);
+                } else if (e.key === "Escape") {
+                  setEditingName(false);
+                }
+              }}
+            />
+            <button
+              disabled={nameSuggesting}
+              title="Suggest name from content"
+              className="flex items-center gap-1 rounded bg-surface px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-40"
+              onClick={async () => {
+                setNameSuggesting(true);
+                try {
+                  const suggested = await suggestProjectName(Number(id));
+                  setNameInput(suggested);
+                } catch { /* ignore */ } finally {
+                  setNameSuggesting(false);
+                }
+              }}
+            >
+              <RefreshCw size={12} className={nameSuggesting ? "animate-spin" : ""} /> AI suggest
+            </button>
+            <button
+              className="rounded bg-accent px-3 py-1 text-xs font-semibold text-white hover:bg-blue-600"
+              onClick={async () => {
+                await renameProject(Number(id), nameInput.trim() || project.name);
+                refetch();
+                setEditingName(false);
+              }}
+            >Save</button>
+            <button
+              className="text-xs text-slate-500 hover:text-white"
+              onClick={() => setEditingName(false)}
+            >Cancel</button>
+          </div>
+        ) : (
+          <button
+            className="text-left"
+            title="Click to rename"
+            onClick={() => { setNameInput(project.name); setEditingName(true); }}
+          >
+            <h1 className="text-2xl font-bold text-white hover:underline decoration-dotted">{project.name}</h1>
+          </button>
+        )}
         {project.status !== "processing" && (
           <button
             onClick={() => {
