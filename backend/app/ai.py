@@ -408,22 +408,34 @@ def segment_text(
 def rank_candidates(
     segment_summary: str,
     search_query: str,
-    candidates: list[dict[str, str]],
+    candidates: list[dict[str, Any]],
     *,
     ai_config: AiModelConfig | Any | None = None,
 ) -> list[dict[str, Any]]:
-    """Use GPT-4o Vision to rank candidate images for a segment.
+    """Use GPT-4o Vision to rank candidate media for a segment.
 
     Args:
         segment_summary: What the segment is about.
         search_query: The query used to find images.
-        candidates: List of {"url": str, "title": str} dicts (thumbnail URLs).
+        candidates: List of {"url": str, "title": str, "media_type": str, "duration_s": float} dicts.
+            media_type is "still" or "video". duration_s is the video length in seconds (if video).
 
     Returns: List of {"url": str, "relevance_score": float} sorted by score desc.
     """
     resolved = _resolve_config(ai_config)
     if not candidates:
         return []
+
+    # Build a summary of which candidates are video vs still for the prompt
+    type_summary = []
+    for i, c in enumerate(candidates[:10]):
+        mtype = c.get("media_type", "still")
+        if mtype == "video":
+            dur = c.get("duration_s")
+            type_summary.append(f"  {i}: video ({dur:.0f}s)" if dur else f"  {i}: video")
+        else:
+            type_summary.append(f"  {i}: still")
+    type_text = "\n".join(type_summary)
 
     # OpenAI vision path (best effort)
     if resolved.provider == "openai" and _get_client() is not None:
@@ -434,7 +446,11 @@ def rank_candidates(
                     "text": (
                         f"Segment summary: {segment_summary}\n"
                         f"Search query: {search_query}\n\n"
+                        f"Candidate media types:\n{type_text}\n\n"
                         "Rate each image's relevance to the segment on a scale of 0.0 to 1.0. "
+                        "Consider whether motion (video) would enhance the segment — "
+                        "give a slight boost to video candidates for segments involving "
+                        "action, process, movement, or dynamic events. "
                         "Return JSON: {\"rankings\": [{\"index\": int, \"score\": float}]}"
                     ),
                 }
@@ -461,8 +477,16 @@ def rank_candidates(
 
     if not rankings:
         # Text-only fallback using selected provider
-        list_text = "\n".join([f"{idx}: {c.get('title','')} ({c.get('url','')})" for idx, c in enumerate(candidates[:10])])
-        system_prompt = "You rank image candidates for relevance. Return JSON only."
+        list_text = "\n".join([
+            f"{idx}: {c.get('title','')} ({c.get('media_type','still')}) ({c.get('url','')})"
+            for idx, c in enumerate(candidates[:10])
+        ])
+        system_prompt = (
+            "You rank media candidates for relevance to a video segment. "
+            "Consider whether video (motion) would enhance the segment — "
+            "boost video candidates for action, process, or movement segments. "
+            "Return JSON only."
+        )
         user_content = (
             f"Segment summary: {segment_summary}\n"
             f"Search query: {search_query}\n\n"
