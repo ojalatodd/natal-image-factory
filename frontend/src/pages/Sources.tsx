@@ -11,11 +11,9 @@ const DEFAULT_SOURCES: SourceConfig[] = [
   { source_name: "Internet Archive", media_type: "still", enabled: true, priority: 30 },
   { source_name: "The Met", media_type: "still", enabled: false, priority: 40 },
   { source_name: "Smithsonian Open Access", media_type: "still", enabled: false, priority: 50 },
-  { source_name: "Europeana", media_type: "still", enabled: false, priority: 60 },
-  { source_name: "Internet Archive", media_type: "video", enabled: false, priority: 10 },
-  { source_name: "National Archives (NARA)", media_type: "video", enabled: false, priority: 20 },
-  { source_name: "NASA", media_type: "video", enabled: false, priority: 30 },
-  { source_name: "Pexels", media_type: "video", enabled: false, priority: 40 },
+  { source_name: "Wikimedia Commons Video", media_type: "video", enabled: false, priority: 10 },
+  { source_name: "Internet Archive Video", media_type: "video", enabled: false, priority: 20 },
+  { source_name: "Pexels", media_type: "video", enabled: false, priority: 30 },
 ];
 
 export default function Sources() {

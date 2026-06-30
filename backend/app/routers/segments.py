@@ -63,3 +63,41 @@ def get_video_url(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No video clip for this segment")
 
     return {"url": presigned_url(asset.video_key)}
+
+
+@router.post("/segments/{segment_id}/retry", response_model=SegmentOut)
+def retry_segment(
+    segment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-run search + rank + acquire for a single segment."""
+    from app.pipeline import stages
+
+    seg = db.get(Segment, segment_id)
+    if not seg or seg.project.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Segment not found")
+
+    project = seg.project
+
+    # Delete old assets for this segment
+    for asset in seg.assets:
+        for key in (asset.spaces_key, asset.thumbnail_key, asset.video_key):
+            if key:
+                try:
+                    from app.storage import delete_object
+                    delete_object(key)
+                except Exception:
+                    pass
+    db.query(Asset).filter(Asset.segment_id == seg.id).delete()
+    seg.chosen_asset_id = None
+    seg.chosen_media_type = None
+    db.commit()
+
+    # Re-run search and rank for just this segment
+    stages.search_media(db, project, [seg])
+    stages.rank_match(db, project, [seg])
+    stages.acquire_process(db, project, [seg])
+
+    db.refresh(seg)
+    return seg

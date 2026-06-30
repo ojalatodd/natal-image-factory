@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BrainCircuit, Film, Image as ImageIcon, Plus, Settings, Trash2, Loader2 } from "lucide-react";
+import { BrainCircuit, Copy, Film, Image as ImageIcon, Plus, Settings, Trash2, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { createProject, deleteProject, getQueueStatus, listProjects } from "../api";
+import { createProject, deleteProject, duplicateProject, getQueueStatus, listProjects, logout } from "../api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -19,6 +19,11 @@ export default function Dashboard() {
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate(`/projects/${p.id}`);
     },
+  });
+
+  const dup = useMutation({
+    mutationFn: (id: number) => duplicateProject(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
 
   const del = useMutation({
@@ -49,8 +54,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => {
-              localStorage.removeItem("token");
-              navigate("/login");
+              logout().then(() => navigate("/login"));
             }}
             className="text-sm text-slate-400 hover:text-white"
           >
@@ -92,6 +96,16 @@ export default function Dashboard() {
               <span className="rounded-full bg-ink px-3 py-1 text-xs uppercase tracking-wide text-slate-400">
                 {p.status}
               </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dup.mutate(p.id);
+                }}
+                className="text-slate-500 hover:text-white"
+                title="Duplicate project"
+              >
+                <Copy size={16} />
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

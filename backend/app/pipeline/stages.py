@@ -52,6 +52,19 @@ from app.pipeline.media import (
 logger = logging.getLogger("natal")
 
 
+def _cleanup_old_assets(db: Session, project: Project) -> None:
+    """Delete Spaces objects (media, thumbs, videos) for existing segments before re-run."""
+    old_segments = db.query(Segment).filter(Segment.project_id == project.id).all()
+    for seg in old_segments:
+        for asset in seg.assets:
+            for key in (asset.spaces_key, asset.thumbnail_key, asset.video_key):
+                if key:
+                    try:
+                        storage.delete_object(key)
+                    except Exception:
+                        pass  # best-effort cleanup
+
+
 # ---- Stage 1: Transcribe & align (Whisper) ----
 def transcribe(db: Session, project: Project) -> dict:
     progress.publish(project.id, "transcribe", 10, "Transcribing voiceover…")
@@ -90,7 +103,8 @@ def segment(db: Session, project: Project, transcript: dict) -> list[Segment]:
     ai_config = _get_ai_config(db, project)
     seg_data = segment_text(article_text, transcript, ai_config=ai_config)
 
-    # Clear old segments for re-runs
+    # Clean up old Spaces objects and segments for re-runs
+    _cleanup_old_assets(db, project)
     db.query(Segment).filter(Segment.project_id == project.id).delete()
     db.commit()
 
@@ -429,7 +443,7 @@ def _process_still(db: Session, project: Project, seg: Segment, asset: Asset) ->
             break
 
     if not adapter or not asset.thumbnail_url:
-        resp = httpx.get(asset.thumbnail_url or asset.source_url or "", timeout=60, follow_redirects=True)
+        resp = httpx.get(asset.thumbnail_url or asset.source_url or "", timeout=60, follow_redirects=True, headers=HEADERS)
         resp.raise_for_status()
         raw_bytes = resp.content
     else:

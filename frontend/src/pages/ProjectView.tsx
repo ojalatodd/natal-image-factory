@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Download, FileText, Mic, RefreshCw, Sparkles, Trash2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { api, deleteProject, getCostEstimate, getDownloadUrl, getVideoUrl, listSegments, listVisualStyles, renameProject, suggestProjectName, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
+import { api, cancelProject, deleteProject, getCostEstimate, getDownloadUrl, getVideoUrl, listSegments, listVisualStyles, renameProject, suggestProjectName, swapAsset, type CostEstimate, type Segment, type VisualStylePreset } from "../api";
 
 interface ProgressEvent {
   stage: string;
@@ -287,6 +287,20 @@ export default function ProjectView() {
         {project.status === "processing" ? <RefreshCw size={18} className="animate-spin" /> : <Sparkles size={18} />}
         {project.status === "processing" ? "Processing…" : showSegments ? "Regenerate" : "Generate"}
       </button>
+
+      {project.status === "processing" && (
+        <button
+          onClick={async () => {
+            if (confirm("Cancel the running pipeline?")) {
+              await cancelProject(Number(id));
+              refetch();
+            }
+          }}
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 py-2 text-sm font-semibold text-white hover:bg-red-700"
+        >
+          <XCircle size={16} /> Cancel Pipeline
+        </button>
+      )}
 
       {canGenerate && project.status !== "processing" && (
         <div className="mb-6">

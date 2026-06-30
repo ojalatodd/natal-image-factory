@@ -2,13 +2,7 @@ import axios from "axios";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
-export const api = axios.create({ baseURL: BASE });
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+export const api = axios.create({ baseURL: BASE, withCredentials: true });
 
 export interface Project {
   id: number;
@@ -57,8 +51,20 @@ export interface Segment {
 
 export async function login(email: string, password: string) {
   const { data } = await api.post("/auth/login", { email, password });
-  localStorage.setItem("token", data.access_token);
   return data;
+}
+
+export async function logout() {
+  await api.post("/auth/logout");
+}
+
+export async function checkAuth(): Promise<boolean> {
+  try {
+    await api.get("/auth/me");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function listProjects(): Promise<Project[]> {
@@ -68,6 +74,11 @@ export async function listProjects(): Promise<Project[]> {
 
 export async function createProject(name: string): Promise<Project> {
   const { data } = await api.post("/projects", { name });
+  return data;
+}
+
+export async function duplicateProject(id: number): Promise<Project> {
+  const { data } = await api.post(`/projects/${id}/duplicate`);
   return data;
 }
 
@@ -83,6 +94,11 @@ export async function listSegments(projectId: string | number): Promise<Segment[
 
 export async function swapAsset(segmentId: number, assetId: number): Promise<Segment> {
   const { data } = await api.post(`/segments/${segmentId}/swap`, { asset_id: assetId });
+  return data;
+}
+
+export async function retrySegment(segmentId: number): Promise<Segment> {
+  const { data } = await api.post(`/segments/${segmentId}/retry`);
   return data;
 }
 
@@ -157,6 +173,11 @@ export async function renameProject(id: number, name: string): Promise<Project> 
 
 export async function deleteProject(id: number): Promise<void> {
   await api.delete(`/projects/${id}`);
+}
+
+export async function cancelProject(id: number): Promise<Project> {
+  const { data } = await api.post(`/projects/${id}/cancel`);
+  return data;
 }
 
 export interface CostEstimate {

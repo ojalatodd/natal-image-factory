@@ -12,20 +12,20 @@ router = APIRouter(prefix="/settings/sources", tags=["sources"])
 DEFAULT_CATALOG = [
     {"source_name": "Library of Congress", "media_type": "still", "priority": 10},
     {"source_name": "Wikimedia Commons", "media_type": "still", "priority": 20},
-    {"source_name": "The Met", "media_type": "still", "priority": 30},
-    {"source_name": "Smithsonian Open Access", "media_type": "still", "priority": 40},
-    {"source_name": "Europeana", "media_type": "still", "priority": 50},
+    {"source_name": "Internet Archive", "media_type": "still", "priority": 30},
+    {"source_name": "The Met", "media_type": "still", "priority": 40},
+    {"source_name": "Smithsonian Open Access", "media_type": "still", "priority": 50},
     {"source_name": "Wikimedia Commons Video", "media_type": "video", "priority": 10},
     {"source_name": "Internet Archive Video", "media_type": "video", "priority": 20},
-    {"source_name": "National Archives (NARA)", "media_type": "video", "priority": 30},
-    {"source_name": "NASA", "media_type": "video", "priority": 40},
-    {"source_name": "Pexels", "media_type": "video", "priority": 50},
+    {"source_name": "Pexels", "media_type": "video", "priority": 30},
 ]
 
 
 @router.get("", response_model=list[SourceConfigOut])
 def list_sources(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     configs = db.query(SourceAdapterConfig).filter(SourceAdapterConfig.user_id == user.id).all()
+    if not configs:
+        return [SourceConfigOut(**c, enabled=True) for c in DEFAULT_CATALOG]
     return configs
 
 

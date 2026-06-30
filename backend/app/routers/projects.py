@@ -1,15 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.ai import suggest_project_name
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Job, Project, ProjectStatus, User
+from app import progress
 from app.schemas import CostEstimateOut, DownloadOut, ProjectCreate, ProjectOut, ProjectSettings
 from app.storage import delete_object, presigned_url
 from app.tasks import run_pipeline
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+limiter = Limiter(key_func=get_remote_address)
 
 # Approximate OpenAI pricing per minute / per image (USD, as of 2025)
 _WHISPER_PER_MIN = 0.006
@@ -27,15 +31,28 @@ def _estimate_costs(project: Project) -> dict:
     # Whisper: $0.006/min
     whisper_cost = audio_min * _WHISPER_PER_MIN
 
-    # Segmentation: ~2K input tokens (article + transcript), ~1K output
-    seg_in = 2000
-    seg_out = 1000
+    # Estimate segment count from audio duration, or default for text-only
+    est_segments = max(1, int(audio_min / 2.5)) if audio_min > 0 else 8
+
+    # Segmentation: estimate input tokens from actual article text size
+    article_chars = 0
+    if project.source_text_key:
+        try:
+            from app.storage import download_bytes
+            raw = download_bytes(project.source_text_key)
+            article_chars = len(raw)
+        except Exception:
+            pass
+    # Rough heuristic: ~4 chars per token for English text
+    article_tokens = article_chars // 4
+    transcript_tokens = int(audio_min * 150)  # ~150 words/min, ~1 token/word
+    seg_in = min(article_tokens + transcript_tokens, 8000)
+    seg_out = est_segments * 200  # ~200 tokens output per segment
     seg_cost = (
         seg_in * _GPT4O_MINI_PER_1K_IN + seg_out * _GPT4O_MINI_PER_1K_OUT
     )
 
     # Ranking: ~5 candidates per segment, ~500 tokens per image, ~50 tokens output
-    est_segments = max(1, int(audio_min / 2.5))
     rank_in = est_segments * 5 * 500
     rank_out = est_segments * 5 * 50
     rank_cost = (
@@ -93,6 +110,27 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db), user: Use
     return project
 
 
+@router.post("/{project_id}/duplicate", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
+def duplicate_project(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Duplicate a project's settings and source files (not segments/results)."""
+    original = _owned(db, user, project_id)
+    copy = Project(
+        user_id=user.id,
+        name=f"{original.name} (copy)",
+        media_mix=original.media_mix,
+        visual_style=original.visual_style,
+        ai_images_enabled=original.ai_images_enabled,
+        ai_video_motion=original.ai_video_motion,
+        source_audio_key=original.source_audio_key,
+        source_text_key=original.source_text_key,
+        audio_duration_s=original.audio_duration_s,
+    )
+    db.add(copy)
+    db.commit()
+    db.refresh(copy)
+    return copy
+
+
 @router.patch("/{project_id}/rename", response_model=ProjectOut)
 def rename_project(
     project_id: int,
@@ -109,8 +147,22 @@ def rename_project(
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return db.query(Project).filter(Project.user_id == user.id).order_by(Project.created_at.desc()).all()
+def list_projects(
+    page: int = 1,
+    per_page: int = 50,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    page = max(1, page)
+    per_page = min(100, max(1, per_page))
+    return (
+        db.query(Project)
+        .filter(Project.user_id == user.id)
+        .order_by(Project.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
 
 
 @router.get("/queue/status", response_model=list[ProjectOut])
@@ -160,7 +212,8 @@ def update_settings(
 
 
 @router.post("/{project_id}/generate", response_model=ProjectOut)
-def generate(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+@limiter.limit("3/minute")
+def generate(request: Request, project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     project = _owned(db, user, project_id)
     if not project.source_audio_key and not project.source_text_key:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload an article text or voiceover first")
@@ -169,7 +222,31 @@ def generate(project_id: int, db: Session = Depends(get_db), user: User = Depend
     project.status = ProjectStatus.processing
     db.commit()
     db.refresh(project)
-    run_pipeline.delay(project.id)
+    task = run_pipeline.delay(project.id)
+    # Store the Celery task ID so we can cancel later
+    job = db.query(Job).filter(Job.project_id == project.id).order_by(Job.id.desc()).first()
+    if job is None:
+        job = Job(project_id=project.id, stage="start", progress_pct=0)
+        db.add(job)
+    job.celery_task_id = task.id
+    db.commit()
+    return project
+
+
+@router.post("/{project_id}/cancel", response_model=ProjectOut)
+def cancel_pipeline(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Cancel a running pipeline."""
+    project = _owned(db, user, project_id)
+    if project.status != ProjectStatus.processing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pipeline is not running")
+    job = db.query(Job).filter(Job.project_id == project.id).order_by(Job.id.desc()).first()
+    if job and job.celery_task_id:
+        from app.celery_app import celery_app
+        celery_app.control.revoke(job.celery_task_id, terminate=True)
+    project.status = ProjectStatus.draft
+    db.commit()
+    db.refresh(project)
+    progress.publish(project_id, "cancelled", 0, "Pipeline cancelled by user")
     return project
 
 
@@ -197,8 +274,8 @@ def delete_project(project_id: int, db: Session = Depends(get_db), user: User = 
 @router.get("/{project_id}/cost-estimate", response_model=CostEstimateOut)
 def cost_estimate(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     project = _owned(db, user, project_id)
-    if not project.source_audio_key or not project.source_text_key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload text and audio first")
+    if not project.source_audio_key and not project.source_text_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload text or audio first")
     return _estimate_costs(project)
 
 
