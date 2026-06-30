@@ -177,13 +177,15 @@ export default function ProjectView() {
             >Cancel</button>
           </div>
         ) : (
-          <button
-            className="text-left"
-            title="Click to rename"
-            onClick={() => { setNameInput(project.name); setEditingName(true); }}
-          >
-            <h1 className="text-2xl font-bold text-white hover:underline decoration-dotted">{project.name}</h1>
-          </button>
+          <div className="text-left">
+            <button
+              title="Click to rename"
+              onClick={() => { setNameInput(project.name); setEditingName(true); }}
+            >
+              <h1 className="text-2xl font-bold text-white hover:underline decoration-dotted">{project.name}</h1>
+            </button>
+            <p className="mt-0.5 text-xs text-slate-500">Click the title to rename — or get an AI-suggested name from your uploaded content.</p>
+          </div>
         )}
         {project.status !== "processing" && (
           <button
