@@ -116,6 +116,7 @@ export default function ProjectView() {
   const canGenerate = project.source_audio_key || project.source_text_key;
   const showSegments = project.status === "review" || project.status === "complete";
   const textOnlyMode = !project.source_audio_key && project.source_text_key;
+  const audioOnlyMode = !project.source_text_key && project.source_audio_key;
 
   return (
     <div className="mx-auto max-w-4xl p-8">
@@ -202,6 +203,11 @@ export default function ProjectView() {
           <strong>Text-only mode:</strong> No voiceover uploaded. Segments will use a default 30s duration each. Upload a voiceover for accurate timestamps and Ken Burns timing.
         </div>
       )}
+      {audioOnlyMode && canGenerate && project.status !== "processing" && (
+        <div className="mb-3 rounded-lg bg-amber-900/30 border border-amber-700/50 p-3 text-sm text-amber-300">
+          <strong>Audio-only mode:</strong> No article text uploaded. Segments will be derived from transcription only. Upload text for richer thematic context and search queries.
+        </div>
+      )}
       <button
         onClick={generate}
         disabled={!canGenerate || project.status === "processing"}
@@ -223,7 +229,7 @@ export default function ProjectView() {
             <div className="mt-2 rounded-lg bg-surface p-3 text-xs text-slate-400">
               <div className="mb-1 flex justify-between">
                 <span>Whisper transcription</span>
-                <span>${costEst.whisper_usd.toFixed(4)}</span>
+                <span>{textOnlyMode ? "N/A" : `$${costEst.whisper_usd.toFixed(4)}`}</span>
               </div>
               <div className="mb-1 flex justify-between">
                 <span>Segmentation (GPT-4o-mini)</span>
@@ -243,7 +249,7 @@ export default function ProjectView() {
                 <span>Estimated total</span>
                 <span>${costEst.total_usd.toFixed(4)}</span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500">Based on {costEst.audio_minutes} min of audio. Actual usage may vary.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Based on {textOnlyMode ? "text-only mode" : `${costEst.audio_minutes} min of audio`}. Actual usage may vary.</p>
             </div>
           )}
         </div>
@@ -350,6 +356,11 @@ export default function ProjectView() {
         >
           <Download size={18} /> Download ZIP
         </a>
+      )}
+      {showSegments && !downloadUrl && segments.length > 0 && (
+        <div className="mb-6 rounded-lg bg-surface p-4 text-center text-sm text-slate-400">
+          No media files were processed. Check pipeline logs — sources may be unavailable or all candidates failed.
+        </div>
       )}
     </div>
   );

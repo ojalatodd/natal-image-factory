@@ -145,6 +145,90 @@ def test_internet_archive_fetch_sends_user_agent(captured, monkeypatch):
     dest.unlink(missing_ok=True)
 
 
+# ---- Wikimedia Commons Video ----
+def test_wikimedia_video_search_sends_user_agent(captured, monkeypatch):
+    from app.pipeline.adapters import wikimedia_video
+
+    transport = _make_mock_transport(captured, response_json={
+        "query": {"search": []}
+    })
+    monkeypatch.setattr(wikimedia_video, "http_client", lambda **kw: httpx.AsyncClient(transport=transport, headers=HEADERS, **{k: v for k, v in kw.items() if k != "headers"}))
+
+    import asyncio
+    adapter = wikimedia_video.WikimediaCommonsVideoAdapter()
+    asyncio.run(adapter.search("test", style="", min_duration_s=None, limit=5))
+    assert captured["User-Agent"] == USER_AGENT
+
+
+def test_wikimedia_video_fetch_sends_user_agent(captured, monkeypatch):
+    from app.pipeline.adapters import wikimedia_video
+    from app.pipeline.adapters.base import CandidateAsset
+
+    transport = _make_mock_transport(captured)
+    monkeypatch.setattr(wikimedia_video, "http_client", lambda **kw: httpx.AsyncClient(transport=transport, headers=HEADERS, **{k: v for k, v in kw.items() if k != "headers"}))
+
+    import asyncio
+    import tempfile
+    adapter = wikimedia_video.WikimediaCommonsVideoAdapter()
+    asset = CandidateAsset(
+        source_name="Wikimedia Commons Video",
+        media_type="video",
+        source_url="https://example.com",
+        download_url="https://example.com/video.ogv",
+    )
+    with tempfile.NamedTemporaryFile(suffix=".ogv", delete=False) as tmp:
+        dest = Path(tmp.name)
+    asyncio.run(adapter.fetch(asset, dest))
+    assert captured["User-Agent"] == USER_AGENT
+    dest.unlink(missing_ok=True)
+
+
+# ---- Internet Archive Video ----
+def test_internet_archive_video_search_sends_user_agent(captured, monkeypatch):
+    from app.pipeline.adapters import internet_archive_video
+
+    transport = _make_mock_transport(captured, response_json={"response": {"docs": []}})
+    monkeypatch.setattr(internet_archive_video, "http_client", lambda **kw: httpx.AsyncClient(transport=transport, headers=HEADERS, **{k: v for k, v in kw.items() if k != "headers"}))
+
+    import asyncio
+    adapter = internet_archive_video.InternetArchiveVideoAdapter()
+    asyncio.run(adapter.search("test", style="", min_duration_s=None, limit=5))
+    assert captured["User-Agent"] == USER_AGENT
+
+
+def test_internet_archive_video_fetch_sends_user_agent(captured, monkeypatch):
+    from app.pipeline.adapters import internet_archive_video
+    from app.pipeline.adapters.base import CandidateAsset
+
+    # IA fetch does a metadata API call then a file download — mock both
+    call_count = {"n": 0}
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["User-Agent"] = request.headers.get("User-Agent", "")
+        call_count["n"] += 1
+        if "metadata" in str(request.url):
+            return httpx.Response(200, json={"files": [{"name": "video.mp4"}]})
+        return httpx.Response(200, content=b"fake-video")
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(internet_archive_video, "http_client", lambda **kw: httpx.AsyncClient(transport=transport, headers=HEADERS, **{k: v for k, v in kw.items() if k != "headers"}))
+
+    import asyncio
+    import tempfile
+    adapter = internet_archive_video.InternetArchiveVideoAdapter()
+    asset = CandidateAsset(
+        source_name="Internet Archive Video",
+        media_type="video",
+        source_url="https://archive.org/details/test",
+        download_url=None,
+        extra={"identifier": "test"},
+    )
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        dest = Path(tmp.name)
+    asyncio.run(adapter.fetch(asset, dest))
+    assert captured["User-Agent"] == USER_AGENT
+    dest.unlink(missing_ok=True)
+
+
 # ---- The Met ----
 def test_met_search_sends_user_agent(captured, monkeypatch):
     from app.pipeline.adapters import met

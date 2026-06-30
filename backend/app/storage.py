@@ -6,6 +6,7 @@ because both are S3-compatible. Switch by changing SPACES_* env vars.
 from __future__ import annotations
 
 import io
+from functools import lru_cache
 
 import boto3
 from botocore.client import Config
@@ -25,6 +26,7 @@ def _client():
     )
 
 
+@lru_cache(maxsize=1)
 def _presign_client():
     """Client used exclusively for presigned URL generation.
 
