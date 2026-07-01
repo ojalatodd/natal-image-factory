@@ -170,7 +170,9 @@ def search_media(db: Session, project: Project, segments: list[Segment]) -> None
     if media_mix == MediaMix.stills:
         search_types = [MediaType.still]
     elif media_mix == MediaMix.video:
-        search_types = [MediaType.video]
+        # Search video first, but also search stills as fallback candidates
+        # so the ranker can choose a still when no relevant video is found.
+        search_types = [MediaType.video, MediaType.still]
     elif media_mix == MediaMix.balanced:
         search_types = [MediaType.still, MediaType.video]
     else:  # ai_judgement
@@ -327,8 +329,30 @@ def rank_match(db: Session, project: Project, segments: list[Segment]) -> None:
                         a.relevance_score = score_entry["relevance_score"]
                         break
 
-            # Pick the best one
-            best = max(assets, key=lambda a: a.relevance_score or 0.0)
+            # For video media_mix, prefer video but fall back to still
+            # when the best video candidate is not relevant enough.
+            VIDEO_RELEVANCE_THRESHOLD = 0.5
+            if project.media_mix == MediaMix.video:
+                video_assets = [a for a in assets if a.media_type == MediaType.video]
+                still_assets = [a for a in assets if a.media_type == MediaType.still]
+                if video_assets and still_assets:
+                    best_video = max(video_assets, key=lambda a: a.relevance_score or 0.0)
+                    best_still = max(still_assets, key=lambda a: a.relevance_score or 0.0)
+                    if (best_video.relevance_score or 0.0) < VIDEO_RELEVANCE_THRESHOLD:
+                        logger.info(
+                            "Segment %d: best video score %.2f < %.1f, "
+                            "falling back to still (score %.2f)",
+                            seg.index, best_video.relevance_score or 0.0,
+                            VIDEO_RELEVANCE_THRESHOLD,
+                            best_still.relevance_score or 0.0,
+                        )
+                        best = best_still
+                    else:
+                        best = best_video
+                else:
+                    best = max(assets, key=lambda a: a.relevance_score or 0.0)
+            else:
+                best = max(assets, key=lambda a: a.relevance_score or 0.0)
             best.is_chosen = True
             seg.chosen_asset_id = best.id
             seg.chosen_media_type = best.media_type
