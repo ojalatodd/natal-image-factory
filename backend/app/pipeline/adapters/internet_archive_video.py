@@ -115,11 +115,25 @@ class InternetArchiveVideoAdapter:
         filename = video_file["name"]
         download_url = IA_DOWNLOAD.format(identifier=identifier, filename=filename)
 
-        async with http_client(timeout=120, follow_redirects=True) as client:
-            resp = await client.get(download_url)
-            resp.raise_for_status()
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(resp.content)
+        max_bytes = 500 * 1024 * 1024  # 500 MB
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        async with http_client(timeout=300, follow_redirects=True) as client:
+            async with client.stream("GET", download_url) as resp:
+                resp.raise_for_status()
+                content_length = int(resp.headers.get("content-length", 0))
+                if content_length and content_length > max_bytes:
+                    raise ValueError(
+                        f"Video file too large ({content_length // 1024 // 1024} MB), skipping"
+                    )
+                written = 0
+                with open(dest, "wb") as f:
+                    async for chunk in resp.aiter_bytes(chunk_size=65536):
+                        written += len(chunk)
+                        if written > max_bytes:
+                            f.close()
+                            dest.unlink(missing_ok=True)
+                            raise ValueError("Video file exceeded 500 MB during download, skipping")
+                        f.write(chunk)
         return dest
 
 
