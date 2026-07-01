@@ -290,8 +290,50 @@ def transcribe_audio(audio_bytes: bytes, filename: str = "audio.mp3") -> dict[st
     return {"duration_s": duration, "words": words}
 
 
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "at", "for",
+    "with", "by", "from", "as", "is", "are", "was", "were", "be", "been", "being",
+    "it", "its", "this", "that", "these", "those", "their", "them", "they", "he",
+    "she", "his", "her", "we", "our", "you", "your", "i", "my", "me", "which",
+    "who", "whom", "whose", "what", "when", "where", "why", "how", "all", "across",
+    "into", "over", "under", "after", "before", "during", "while", "about",
+}
+
+
+def _derive_query_from_text(article_text: str, *, max_words: int = 6) -> str:
+    """Extract a topical search query from article text as a fallback.
+
+    Picks the most frequent meaningful (non-stopword) words, preserving the
+    order of first appearance. Falls back to a generic term only when the
+    text is empty.
+    """
+    if not article_text or not article_text.strip():
+        return "historical archival footage"
+
+    import re
+    from collections import Counter
+
+    tokens = re.findall(r"[A-Za-z][A-Za-z'-]+", article_text)
+    meaningful = [t for t in tokens if t.lower() not in _STOPWORDS and len(t) > 2]
+    if not meaningful:
+        return "historical archival footage"
+
+    # Rank by frequency, but keep first-seen order for ties/readability
+    counts = Counter(t.lower() for t in meaningful)
+    seen: dict[str, str] = {}
+    for t in meaningful:
+        seen.setdefault(t.lower(), t)
+    top = sorted(seen.keys(), key=lambda w: (-counts[w], list(seen).index(w)))
+    chosen = [seen[w] for w in top[:max_words]]
+    return " ".join(chosen)
+
+
 def _fallback_segment(article_text: str, duration: float) -> dict[str, Any]:
-    """Build a single fallback segment spanning the full duration."""
+    """Build a single fallback segment spanning the full duration.
+
+    The search query is derived from the article text so that even when AI
+    segmentation fails, media search stays topical rather than generic.
+    """
     return {
         "index": 1,
         "start_s": 0.0,
@@ -299,7 +341,7 @@ def _fallback_segment(article_text: str, duration: float) -> dict[str, Any]:
         "duration_s": duration,
         "theme_label": "Full narration",
         "summary": article_text[:500] if article_text else "",
-        "search_query": "historical illustration",
+        "search_query": _derive_query_from_text(article_text),
     }
 
 
@@ -320,24 +362,45 @@ def segment_text(
 
     word_list = transcript.get("words", [])
     word_summary = " ".join([w["word"] for w in word_list[:200]])
+    audio_duration_for_prompt = transcript.get("duration_s", 0.0)
+    has_transcript = bool(word_list) and audio_duration_for_prompt and audio_duration_for_prompt > 0.0
 
-    system_prompt = (
-        "You are a video editor assistant. Given an article and a narration transcript, "
-        "split the narration into thematic segments. Each segment should be roughly "
-        f"{target_segment_s} seconds long (but can vary based on content). "
-        "For each segment, provide: start_s, end_s (in seconds from the audio), "
-        "theme_label (short title), summary (1-2 sentences), and search_query "
-        "(a concise query to find relevant public-domain images). "
-        f"Return at most {max_segments} segments. "
-        "Return JSON: {\"segments\": [{\"index\": int, \"start_s\": float, \"end_s\": float, "
-        "\"theme_label\": str, \"summary\": str, \"search_query\": str}]}"
-    )
-
-    user_content = (
-        f"ARTICLE TEXT:\n{article_text[:4000]}\n\n"
-        f"TRANSCRIPT (first 200 words):\n{word_summary}\n\n"
-        f"Audio duration: {transcript.get('duration_s', 0.0)} seconds"
-    )
+    if has_transcript:
+        system_prompt = (
+            "You are a video editor assistant. Given an article and a narration transcript, "
+            "split the narration into thematic segments. Each segment should be roughly "
+            f"{target_segment_s} seconds long (but can vary based on content). "
+            "For each segment, provide: start_s, end_s (in seconds from the audio), "
+            "theme_label (short title), summary (1-2 sentences), and search_query "
+            "(a specific, concrete query naming the key people, places, objects, or events "
+            "in the segment so it finds relevant public-domain media — avoid generic terms "
+            "like 'historical illustration'). "
+            f"Return at most {max_segments} segments. "
+            "Return JSON: {\"segments\": [{\"index\": int, \"start_s\": float, \"end_s\": float, "
+            "\"theme_label\": str, \"summary\": str, \"search_query\": str}]}"
+        )
+        user_content = (
+            f"ARTICLE TEXT:\n{article_text[:4000]}\n\n"
+            f"TRANSCRIPT (first 200 words):\n{word_summary}\n\n"
+            f"Audio duration: {audio_duration_for_prompt} seconds"
+        )
+    else:
+        # No voiceover: segment the ARTICLE TEXT itself into thematic chapters.
+        system_prompt = (
+            "You are a video editor assistant. Given an article, split it into thematic "
+            "segments suitable for accompanying b-roll, one chapter per distinct idea. "
+            f"Aim for {target_segment_s}-second segments; produce multiple segments whenever "
+            "the article covers more than one topic. Do NOT return an empty list. "
+            "For each segment, provide theme_label (short title), summary (1-2 sentences), "
+            "and search_query (a specific, concrete query naming the key people, places, "
+            "objects, or events in the segment so it finds relevant public-domain media — "
+            "avoid generic terms like 'historical illustration'). "
+            "Do not include start_s/end_s; timing is assigned automatically. "
+            f"Return at most {max_segments} segments. "
+            "Return JSON: {\"segments\": [{\"index\": int, \"theme_label\": str, "
+            "\"summary\": str, \"search_query\": str}]}"
+        )
+        user_content = f"ARTICLE TEXT:\n{article_text[:4000]}"
 
     parsed = _chat_json(
         resolved,
