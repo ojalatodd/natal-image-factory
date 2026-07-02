@@ -72,7 +72,35 @@ def trim_and_normalize(
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
+        # Log full error with file details
+        logger.error(
+            "FFmpeg failed for %s (src=%s, dest=%s, start=%.1fs, dur=%.1fs)\n"
+            "STDERR:\n%s\nSTDOUT:\n%s",
+            src.name, src, dest, start_s, duration_s, result.stderr, result.stdout,
+        )
+        # Try a simpler fallback: just copy the stream without complex filters
+        logger.info("Attempting simpler FFmpeg copy as fallback...")
+        fallback_cmd = [
+            "ffmpeg", "-y",
+            "-ss", f"{start_s:.3f}",
+            "-i", str(src),
+            "-t", f"{duration_s:.3f}",
+            "-an",
+            "-c:v", "copy",
+            str(dest),
+        ]
+        fallback_result = subprocess.run(fallback_cmd, capture_output=True, text=True, timeout=300)
+        if fallback_result.returncode != 0:
+            logger.error(
+                "FFmpeg fallback also failed for %s\nSTDERR:\n%s",
+                src.name, fallback_result.stderr,
+            )
+            raise RuntimeError(
+                f"FFmpeg failed (both complex and simple copy). "
+                f"File: {src.name}, size: {src.stat().st_size if src.exists() else 0} bytes. "
+                f"Error: {result.stderr[-500:]}"
+            )
+        logger.info("FFmpeg fallback copy succeeded for %s", src.name)
 
     return dest
 
@@ -157,7 +185,15 @@ def ken_burns_from_still(
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
+        logger.error(
+            "Ken Burns FFmpeg failed for %s (src=%s, dest=%s, dur=%.1fs)\n"
+            "STDERR:\n%s\nSTDOUT:\n%s",
+            src.name, src, dest, duration_s, result.stderr, result.stdout,
+        )
+        raise RuntimeError(
+            f"Ken Burns FFmpeg failed. File: {src.name}, size: {src.stat().st_size if src.exists() else 0} bytes. "
+            f"Error: {result.stderr[-500:]}"
+        )
 
     return dest
 
@@ -189,6 +225,14 @@ def extract_thumbnail(
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg thumbnail extraction failed: {result.stderr[-500:]}")
+        logger.error(
+            "Thumbnail FFmpeg failed for %s (src=%s, dest=%s, at=%.1fs)\n"
+            "STDERR:\n%s\nSTDOUT:\n%s",
+            src.name, src, dest, at_s, result.stderr, result.stdout,
+        )
+        raise RuntimeError(
+            f"Thumbnail FFmpeg failed. File: {src.name}, size: {src.stat().st_size if src.exists() else 0} bytes. "
+            f"Error: {result.stderr[-500:]}"
+        )
 
     return dest
